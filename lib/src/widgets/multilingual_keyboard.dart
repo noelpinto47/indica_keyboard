@@ -112,83 +112,9 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
     return '${_currentLayoutPage + 1}/$maxPages';
   }
 
-  // Handle letter selection for dynamic top row
-  void _handleLetterSelection(String key) {
-    if (mounted) {
-      setState(() {
-        // Check if the pressed key is a consonant
-        if (KeyboardLayout.isConsonant(key, _currentLanguage)) {
-          _selectedLetter = key;
-        } 
-        // For other keys (vowels, symbols), clear selection
-        else if (_isMainVowel(key)) {
-          _selectedLetter = null;
-        }
-      });
-    }
-  }
-
-  // Check if the key is a vowel attachment for the selected letter
-  bool _isVowelAttachment(String key) {
-    if (_selectedLetter == null) return false;
-    final attachments = KeyboardLayout.getVowelAttachments(_selectedLetter!, _currentLanguage);
-    return attachments.contains(key);
-  }
-
-  // Check if the key is a main vowel
-  bool _isMainVowel(String key) {
-    final mainVowels = KeyboardLayout.getMainVowels(_currentLanguage);
-    return mainVowels.contains(key);
-  }
-
-  // Check if the key is a second row attachment for the selected letter
-  bool _isSecondRowAttachment(String key) {
-    if (_selectedLetter == null) return false;
-    final attachments = KeyboardLayout.getSecondRowAttachments(_selectedLetter!, _currentLanguage);
-    return attachments.contains(key);
-  }
-
-  // Check if the key is a last row attachment for the selected letter
-  bool _isLastRowAttachment(String key) {
-    if (_selectedLetter == null) return false;
-    final attachments = KeyboardLayout.getLastRowAttachments(_selectedLetter!, _currentLanguage);
-    return attachments.contains(key);
-  }
-
-  // Replace the last consonant with consonant+vowel attachment
-  Future<void> _replaceConsonantWithAttachment(String attachment) async {
-    try {
-      // Fallback: send backspace then the attachment
-      widget.onTextInput?.call('⌫');
-      widget.onTextInput?.call(attachment);
-    } catch (e) {
-      // Fallback on error
-      widget.onTextInput?.call('⌫');
-      widget.onTextInput?.call(attachment);
-    }
-  }
-  
   // CRITICAL PATH: This runs on every key press
   Future<void> _onKeyPress(String key) async {
     try {
-      // Handle vowel, second row, and last row attachment replacement for Hindi/Marathi
-      if (_currentLanguage != 'en' && _currentLayoutPage == 0 && _selectedLetter != null && 
-          (_isVowelAttachment(key) || _isSecondRowAttachment(key) || _isLastRowAttachment(key))) {
-        // Replace the consonant with consonant+attachment
-        await _replaceConsonantWithAttachment(key);
-        if (mounted) {
-          setState(() {
-            _selectedLetter = null; // Clear selection after applying attachment
-          });
-        }
-        return; // Don't process this key normally
-      }
-      
-      // Handle letter selection for dynamic top row (Hindi/Marathi only)
-      if (_currentLanguage != 'en' && _currentLayoutPage == 0) {
-        _handleLetterSelection(key);
-      }
-      
       // Handle three-state capitalization
       String finalKey = key;
       if (_isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase()) {

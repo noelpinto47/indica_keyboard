@@ -33,15 +33,28 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
   final TextEditingController _textController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _showKeyboard = false;
+  bool _isDialogOpen = false; // Track dialog state
   String _currentLanguage = 'en';
 
   @override
   void initState() {
     super.initState();
     _focusNode.addListener(() {
-      setState(() {
-        _showKeyboard = _focusNode.hasFocus;
-      });
+      if (_focusNode.hasFocus) {
+        setState(() {
+          _showKeyboard = true;
+        });
+      } else {
+        // Don't hide keyboard immediately on focus lost
+        // This prevents keyboard from disappearing when dialogs open
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted && !_isDialogOpen && !_focusNode.hasFocus) {
+            setState(() {
+              _showKeyboard = false;
+            });
+          }
+        });
+      }
     });
   }
 
@@ -84,6 +97,12 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
   void _handleLanguageChanged(String language) {
     setState(() {
       _currentLanguage = language;
+    });
+  }
+
+  void _handleDialogStateChanged(bool isOpen) {
+    setState(() {
+      _isDialogOpen = isOpen;
     });
   }
 
@@ -156,6 +175,7 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
               initialLanguage: 'en',
               onTextInput: _handleTextInput,
               onLanguageChanged: _handleLanguageChanged,
+              onDialogStateChanged: _handleDialogStateChanged,
               showLanguageSwitcher: true,
               enableHapticFeedback: true,
             ),

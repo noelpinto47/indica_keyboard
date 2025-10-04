@@ -26,30 +26,17 @@ class KeyboardLayout {
   static List<List<String>> _getHindiLayoutPage(int page, {String? selectedLetter}) {
     switch (page) {
       case 0: // Page 1/4 - Dynamic top row + consonants
-        final topRow = selectedLetter != null && isConsonant(selectedLetter, 'hi')
-            ? getVowelAttachments(selectedLetter, 'hi')
-            : getMainVowels('hi');
-        
-        // Dynamic second row - replace '़','ं' when consonant is selected
-        List<String> secondRow = ['क','ख','ग','घ','ड़','च','छ','ज','झ','़','ं'];
-        if (selectedLetter != null && isConsonant(selectedLetter, 'hi')) {
-          final attachments = getSecondRowAttachments(selectedLetter, 'hi');
-          secondRow = ['क','ख','ग','घ','ड़','च','छ','ज','झ',attachments[0], attachments[1]];
-        }
-        
-        // Dynamic last row - replace 'ऋ','्' when consonant is selected
-        List<String> lastRow = ['स','ह','ज्ञ','क्ष','त्र','श्र','ऋ','्'];
-        if (selectedLetter != null && isConsonant(selectedLetter, 'hi')) {
-          final attachments = getLastRowAttachments(selectedLetter, 'hi');
-          lastRow = ['स','ह','ज्ञ','क्ष','त्र','श्र', attachments[0], attachments[1]];
-        }
-        
         return [
-          topRow,
-          secondRow,
+          [
+            '\u093E','\u093F','\u0940',
+            '\u0941','\u0942','\u0947',
+            '\u0948','\u094B','\u094C',
+            '\u0902','\u0903',
+          ],
+          ['क','ख','ग','घ','ड़','च','छ','ज','झ','\u093C','\u0901'],
           ['ट','ठ','ड','ढ','ण','त','थ','द','ध','न', 'ञ'],
           ['प','फ','ब','भ','म','य','र','ल','व','श', 'ष'],
-          lastRow
+          ['स','ह','क्ष','त्र','ज्ञ','श्र','ऋ','\u0943','्']
         ];
       case 1: // Page 2/4 - Conjunct consonants
         return [
@@ -84,30 +71,17 @@ class KeyboardLayout {
   static List<List<String>> _getMarathiLayoutPage(int page, {String? selectedLetter}) {
     switch (page) {
       case 0: // Page 1/4 - Basic Marathi layout with dynamic top row
-        final topRow = selectedLetter != null && isConsonant(selectedLetter, 'mr')
-            ? getVowelAttachments(selectedLetter, 'mr')
-            : getMainVowels('mr');
-        
-        // Dynamic second row - replace '़','ं' when consonant is selected
-        List<String> secondRow = ['क','ख','ग','घ','ड़','च','छ','ज','झ','़','ं'];
-        if (selectedLetter != null && isConsonant(selectedLetter, 'mr')) {
-          final attachments = getSecondRowAttachments(selectedLetter, 'mr');
-          secondRow = ['क','ख','ग','घ','ड़','च','छ','ज','झ',attachments[0], attachments[1]];
-        }
-        
-        // Dynamic last row - replace 'ऋ','्' when consonant is selected
-        List<String> lastRow = ['स','ह','ळ्ह','क्ष','ज्ञ','त्र','ऋ','्'];
-        if (selectedLetter != null && isConsonant(selectedLetter, 'mr')) {
-          final attachments = getLastRowAttachments(selectedLetter, 'mr');
-          lastRow = ['स','ह','ळ्ह','क्ष','ज्ञ','त्र', attachments[0], attachments[1]];
-        }
-        
         return [
-          topRow,
-          secondRow,
+          [
+            '\u093E','\u093F','\u0940',
+            '\u0941','\u0942','\u0947',
+            '\u0948','\u094B','\u094C',
+            '\u0902','\u0903',
+          ],
+          ['क','ख','ग','घ','ड़','च','छ','ज','झ','\u093C','\u0901'],
           ['ट','ठ','ड','ढ','ण','त','थ','द','ध','न','ञ'],
           ['प','फ','ब','भ','म','य','र','ल','ळ','व','श'],
-          lastRow
+          ['स','ह','ळ्ह','क्ष','ज्ञ','त्र','ऋ','\u0943','्']
         ];
       case 1: // Page 2/4 - Marathi conjunct consonants
         return [
@@ -146,55 +120,6 @@ class KeyboardLayout {
       ['*','"','\'',':',';','!','?','~','<','>'],
       ['more','=','{','}','[',']','\\','%','^'],
     ];
-  }
-  
-  /// Generate vowel attachments for a given consonant
-  static List<String> getVowelAttachments(String consonant, String language) {
-    if (language == 'hi' || language == 'mr') {
-      return [
-        consonant,                    // Pure consonant (with inherent 'a')
-        '$consonant\u093E',          // aa (ा)
-        '$consonant\u093F',          // i (ि)
-        '$consonant\u0940',          // ii (ी)
-        '$consonant\u0941',          // u (ु)
-        '$consonant\u0942',          // uu (ू)
-        '$consonant\u0947',          // e (े)
-        '$consonant\u0948',          // ai (ै)
-        '$consonant\u094B',          // o (ो)
-        '$consonant\u094C',          // au (ौ)
-      ];
-    }
-    return [];
-  }
-
-  /// Generate second row attachments for a given consonant
-  static List<String> getSecondRowAttachments(String consonant, String language) {
-    if (language == 'hi' || language == 'mr') {
-      return [
-        '$consonant\u093C',          // Consonant with nukta (़)
-        '$consonant\u0902',          // Consonant with anusvara (ं)
-      ];
-    }
-    return ['\u093C', '\u0902']; // Default nukta and anusvara
-  }
-
-  /// Generate last row attachments for a given consonant
-  static List<String> getLastRowAttachments(String consonant, String language) {
-    if (language == 'hi' || language == 'mr') {
-      return [
-        '$consonant\u0943',          // Consonant with ri vowel (ृ)
-        '$consonant\u094D',          // Consonant with halant/virama (्)
-      ];
-    }
-    return ['\u090B', '\u094D']; // Default ri vowel and halant
-  }
-
-  /// Get main vowels (when no letter is selected)
-  static List<String> getMainVowels(String language) {
-    if (language == 'hi' || language == 'mr') {
-      return ['अ','आ','इ','ई','उ','ऊ','ए','ऐ','ओ','औ'];
-    }
-    return [];
   }
 
   /// Check if a character is a consonant that can take vowel attachments

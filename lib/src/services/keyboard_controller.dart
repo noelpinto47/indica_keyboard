@@ -99,19 +99,6 @@ class KeyboardController extends ChangeNotifier {
     return '${_currentLayoutPage + 1}/$maxPages';
   }
 
-  /// Handle letter selection for dynamic top row
-  void handleLetterSelection(String key) {
-    // Check if the pressed key is a consonant
-    if (KeyboardLayout.isConsonant(key, _currentLanguage)) {
-      _selectedLetter = key;
-    } 
-    // For other keys (vowels, symbols), clear selection
-    else if (_isMainVowel(key)) {
-      _selectedLetter = null;
-    }
-    notifyListeners();
-  }
-
   /// Toggle shift state (English only)
   void toggleShift() {
     if (_currentLanguage != 'en') return;
@@ -162,11 +149,6 @@ class KeyboardController extends ChangeNotifier {
 
   /// Process key press
   void processKeyPress(String key) {
-    // Handle letter selection for dynamic top row (Hindi/Marathi only)
-    if (_currentLanguage != 'en' && _currentLayoutPage == 0) {
-      handleLetterSelection(key);
-    }
-
     // Handle case conversion for English
     String finalKey = key;
     if (isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase()) {
@@ -176,33 +158,6 @@ class KeyboardController extends ChangeNotifier {
 
     // Send key to text input
     onTextInput?.call(finalKey);
-  }
-
-  /// Check if the key is a vowel attachment for the selected letter
-  bool isVowelAttachment(String key) {
-    if (_selectedLetter == null) return false;
-    final attachments = KeyboardLayout.getVowelAttachments(_selectedLetter!, _currentLanguage);
-    return attachments.contains(key);
-  }
-
-  /// Check if the key is a main vowel
-  bool _isMainVowel(String key) {
-    final mainVowels = KeyboardLayout.getMainVowels(_currentLanguage);
-    return mainVowels.contains(key);
-  }
-
-  /// Check if the key is a second row attachment for the selected letter
-  bool isSecondRowAttachment(String key) {
-    if (_selectedLetter == null) return false;
-    final attachments = KeyboardLayout.getSecondRowAttachments(_selectedLetter!, _currentLanguage);
-    return attachments.contains(key);
-  }
-
-  /// Check if the key is a last row attachment for the selected letter
-  bool isLastRowAttachment(String key) {
-    if (_selectedLetter == null) return false;
-    final attachments = KeyboardLayout.getLastRowAttachments(_selectedLetter!, _currentLanguage);
-    return attachments.contains(key);
   }
 
   /// Handle special key press (backspace, space, etc.)
