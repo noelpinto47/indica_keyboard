@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/keyboard_layout.dart';
 
 /// Enum for three-state shift key behavior
-enum ShiftState {
+enum KeyboardShiftState {
   off,        // lowercase
   single,     // capitalize next letter only
   capsLock,   // all letters capitalized
@@ -27,9 +27,9 @@ class KeyboardController extends ChangeNotifier {
   String? get selectedLetter => _selectedLetter;
 
   // Three-state shift key management (only for English)
-  ShiftState _shiftState = ShiftState.off;
-  ShiftState get shiftState => _shiftState;
-  bool get isUpperCase => _shiftState != ShiftState.off && _currentLanguage == 'en';
+  KeyboardShiftState _shiftState = KeyboardShiftState.off;
+  KeyboardShiftState get shiftState => _shiftState;
+  bool get isUpperCase => _shiftState != KeyboardShiftState.off && _currentLanguage == 'en';
 
   // Numeric keyboard toggle
   bool _showNumericKeyboard = false;
@@ -76,7 +76,7 @@ class KeyboardController extends ChangeNotifier {
       _currentLanguage = language;
       _currentLayoutPage = 0; // Reset to first page
       _selectedLetter = null; // Clear selection
-      _shiftState = ShiftState.off; // Reset shift state
+      _shiftState = KeyboardShiftState.off; // Reset shift state
       onLanguageChanged?.call(language);
       notifyListeners();
     }
@@ -117,14 +117,14 @@ class KeyboardController extends ChangeNotifier {
     if (_currentLanguage != 'en') return;
 
     switch (_shiftState) {
-      case ShiftState.off:
-        _shiftState = ShiftState.single;
+      case KeyboardShiftState.off:
+        _shiftState = KeyboardShiftState.single;
         break;
-      case ShiftState.single:
-        _shiftState = ShiftState.capsLock;
+      case KeyboardShiftState.single:
+        _shiftState = KeyboardShiftState.capsLock;
         break;
-      case ShiftState.capsLock:
-        _shiftState = ShiftState.off;
+      case KeyboardShiftState.capsLock:
+        _shiftState = KeyboardShiftState.off;
         break;
     }
     notifyListeners();
@@ -134,16 +134,16 @@ class KeyboardController extends ChangeNotifier {
   void handleShiftDoubleTap() {
     if (_currentLanguage != 'en') return;
     
-    if (_shiftState == ShiftState.single) {
-      _shiftState = ShiftState.capsLock;
+    if (_shiftState == KeyboardShiftState.single) {
+      _shiftState = KeyboardShiftState.capsLock;
       notifyListeners();
     }
   }
 
   /// Reset shift state after single use
   void resetShiftIfSingle() {
-    if (_shiftState == ShiftState.single) {
-      _shiftState = ShiftState.off;
+    if (_shiftState == KeyboardShiftState.single) {
+      _shiftState = KeyboardShiftState.off;
       notifyListeners();
     }
   }
@@ -227,7 +227,7 @@ class KeyboardController extends ChangeNotifier {
   /// Clear all state
   void clear() {
     _selectedLetter = null;
-    _shiftState = ShiftState.off;
+    _shiftState = KeyboardShiftState.off;
     _currentLayoutPage = 0;
     notifyListeners();
   }

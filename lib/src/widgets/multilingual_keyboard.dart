@@ -1,45 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/keyboard_layout.dart';
-import '../services/keyboard_controller.dart';
 import '../constants/keyboard_constants.dart';
 
-/// Main multilingual keyboard widget that can be used as a plugin
+// Enum for three-state shift key behavior
+enum ShiftState {
+  off,        // lowercase
+  single,     // capitalize next letter only
+  capsLock,   // all letters capitalized
+}
+
+/// Main multilingual keyboard widget based on MinimalExamKeyboard
 class MultilingualKeyboard extends StatefulWidget {
-  /// List of supported languages (e.g., ['en', 'hi', 'mr'])
-  final List<String> supportedLanguages;
-  
-  /// Initial language to display
+  final List<String> supportedLanguages; // e.g., ['en', 'hi', 'mr']
+  final Function(String)? onTextInput; // Optional fallback for non-native platforms
+  final bool useNativeKeyboard; // Enable/disable native integration
+  final Function(bool)? onDialogStateChanged; // Notify parent about dialog state
   final String initialLanguage;
-  
-  /// Callback when text is input
-  final Function(String)? onTextInput;
-  
-  /// Callback when language is changed
   final Function(String)? onLanguageChanged;
-  
-  /// Callback when a key is pressed (for additional handling)
   final Function(String)? onKeyPressed;
-  
-  /// Custom height for the keyboard
   final double? height;
-  
-  /// Custom theme colors
   final Color? backgroundColor;
   final Color? keyColor;
   final Color? textColor;
-  
-  /// Whether to show language switcher
   final bool showLanguageSwitcher;
-  
-  /// Whether to enable haptic feedback
   final bool enableHapticFeedback;
-
+  
   const MultilingualKeyboard({
     super.key,
     required this.supportedLanguages,
-    this.initialLanguage = 'en',
     this.onTextInput,
+    this.useNativeKeyboard = true,
+    this.onDialogStateChanged,
+    this.initialLanguage = 'en',
     this.onLanguageChanged,
     this.onKeyPressed,
     this.height,
@@ -55,289 +47,821 @@ class MultilingualKeyboard extends StatefulWidget {
 }
 
 class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
-  late KeyboardController _controller;
-  late DateTime? _lastShiftTap;
-  static const Duration _doubleTapThreshold = Duration(milliseconds: 300);
-
+  String _currentLanguage = 'en';
+  final Map<String, List<List<String>>> _layouts = {};
+  
+  // Layout page management for non-English keyboards
+  int _currentLayoutPage = 0;
+  final Map<String, int> _maxLayoutPages = {'hi': 4, 'mr': 4}; // Hindi and Marathi have 4 pages
+  
+  // Selected letter for dynamic top row (vowel attachments)
+  String? _selectedLetter;
+  
+  // Three-state shift key management (only for English)
+  ShiftState _shiftState = ShiftState.off;
+  bool get _isUpperCase => _shiftState != ShiftState.off && _currentLanguage == 'en';
+  
+  bool _showNumericKeyboard = false;
+  
+  // Double tap detection for caps lock
+  DateTime? _lastShiftTap;
+  static const doubleTapThreshold = Duration(milliseconds: 300);
+  
   @override
   void initState() {
     super.initState();
-    _controller = KeyboardController(
-      supportedLanguages: widget.supportedLanguages,
-      initialLanguage: widget.initialLanguage,
-      onTextInput: _handleTextInput,
-      onLanguageChanged: widget.onLanguageChanged,
+    _currentLanguage = widget.initialLanguage;
+    _loadKeyboardLayouts();
+  }
+  
+  void _loadKeyboardLayouts() {
+    // Pre-load all language layouts into memory
+    // No dynamic loading during typing = consistent performance
+    for (final lang in widget.supportedLanguages) {
+      _layouts[lang] = KeyboardLayout.getLayoutForLanguage(lang, page: 0);
+    }
+  }
+
+  // Get current layout based on language, page, and selected letter
+  List<List<String>> _getCurrentLayout() {
+    if (_showNumericKeyboard) {
+      return KeyboardLayout.getNumericLayout();
+    }
+    return KeyboardLayout.getLayoutForLanguage(
+      _currentLanguage, 
+      page: _currentLayoutPage,
+      selectedLetter: _selectedLetter,
     );
-    _lastShiftTap = null;
+  }
+
+  // Switch to next layout page (for non-English keyboards)
+  void _switchLayoutPage() {
+    if (_currentLanguage == 'en') return; // English doesn't have layout pages
+    
+    final maxPages = _maxLayoutPages[_currentLanguage] ?? 1;
+    setState(() {
+      _currentLayoutPage = (_currentLayoutPage + 1) % maxPages;
+      _selectedLetter = null; // Clear selection when switching pages
+    });
+  }
+
+  // Get layout page indicator text
+  String _getLayoutPageText() {
+    if (_currentLanguage == 'en') return '';
+    final maxPages = _maxLayoutPages[_currentLanguage] ?? 1;
+    return '${_currentLayoutPage + 1}/$maxPages';
+  }
+
+  // Handle letter selection for dynamic top row
+  void _handleLetterSelection(String key) {
+    if (mounted) {
+      setState(() {
+        // Check if the pressed key is a consonant
+        if (KeyboardLayout.isConsonant(key, _currentLanguage)) {
+          _selectedLetter = key;
+        } 
+        // For other keys (vowels, symbols), clear selection
+        else if (_isMainVowel(key)) {
+          _selectedLetter = null;
+        }
+      });
+    }
+  }
+
+  // Check if the key is a vowel attachment for the selected letter
+  bool _isVowelAttachment(String key) {
+    if (_selectedLetter == null) return false;
+    final attachments = KeyboardLayout.getVowelAttachments(_selectedLetter!, _currentLanguage);
+    return attachments.contains(key);
+  }
+
+  // Check if the key is a main vowel
+  bool _isMainVowel(String key) {
+    final mainVowels = KeyboardLayout.getMainVowels(_currentLanguage);
+    return mainVowels.contains(key);
+  }
+
+  // Check if the key is a second row attachment for the selected letter
+  bool _isSecondRowAttachment(String key) {
+    if (_selectedLetter == null) return false;
+    final attachments = KeyboardLayout.getSecondRowAttachments(_selectedLetter!, _currentLanguage);
+    return attachments.contains(key);
+  }
+
+  // Check if the key is a last row attachment for the selected letter
+  bool _isLastRowAttachment(String key) {
+    if (_selectedLetter == null) return false;
+    final attachments = KeyboardLayout.getLastRowAttachments(_selectedLetter!, _currentLanguage);
+    return attachments.contains(key);
+  }
+
+  // Replace the last consonant with consonant+vowel attachment
+  Future<void> _replaceConsonantWithAttachment(String attachment) async {
+    try {
+      // Fallback: send backspace then the attachment
+      widget.onTextInput?.call('⌫');
+      widget.onTextInput?.call(attachment);
+    } catch (e) {
+      // Fallback on error
+      widget.onTextInput?.call('⌫');
+      widget.onTextInput?.call(attachment);
+    }
+  }
+  
+  // CRITICAL PATH: This runs on every key press
+  Future<void> _onKeyPress(String key) async {
+    try {
+      // Handle vowel, second row, and last row attachment replacement for Hindi/Marathi
+      if (_currentLanguage != 'en' && _currentLayoutPage == 0 && _selectedLetter != null && 
+          (_isVowelAttachment(key) || _isSecondRowAttachment(key) || _isLastRowAttachment(key))) {
+        // Replace the consonant with consonant+attachment
+        await _replaceConsonantWithAttachment(key);
+        if (mounted) {
+          setState(() {
+            _selectedLetter = null; // Clear selection after applying attachment
+          });
+        }
+        return; // Don't process this key normally
+      }
+      
+      // Handle letter selection for dynamic top row (Hindi/Marathi only)
+      if (_currentLanguage != 'en' && _currentLayoutPage == 0) {
+        _handleLetterSelection(key);
+      }
+      
+      // Handle three-state capitalization
+      String finalKey = key;
+      if (_isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase()) {
+        finalKey = key.toUpperCase();
+        
+        // Auto-reset shift state after single character for 'single' mode
+        if (_shiftState == ShiftState.single) {
+          setState(() {
+            _shiftState = ShiftState.off;
+          });
+        }
+      }
+      
+      // Send text to callback
+      widget.onTextInput?.call(finalKey);
+      widget.onKeyPressed?.call(finalKey);
+      
+    } catch (e) {
+      // Fallback handling
+      widget.onTextInput?.call(key);
+    }
+  }
+
+  void _onBackspace() {
+    widget.onTextInput?.call('⌫');
+  }
+
+  void _toggleCase() {
+    if (_currentLanguage == 'en') {
+      // Handle shift key for English
+      final now = DateTime.now();
+      if (_lastShiftTap != null && now.difference(_lastShiftTap!) < doubleTapThreshold) {
+        // Double tap: activate caps lock
+        setState(() {
+          _shiftState = ShiftState.capsLock;
+        });
+      } else {
+        // Single tap: cycle through states
+        setState(() {
+          switch (_shiftState) {
+            case ShiftState.off:
+              _shiftState = ShiftState.single;
+              break;
+            case ShiftState.single:
+            case ShiftState.capsLock:
+              _shiftState = ShiftState.off;
+              break;
+          }
+        });
+      }
+      _lastShiftTap = now;
+    } else {
+      // Handle layout page switching for non-English keyboards
+      _switchLayoutPage();
+    }
+  }
+
+  void _toggleNumericKeyboard() {
+    setState(() {
+      _showNumericKeyboard = !_showNumericKeyboard;
+    });
+  }
+
+  void _toggleLanguageSelector() {
+    if (widget.supportedLanguages.length > 1) {
+      _showLanguageModal();
+    }
+  }
+
+  void _switchLanguage(String language) {
+    if (mounted) {
+      setState(() {
+        _currentLanguage = language;
+        _currentLayoutPage = 0; // Reset to first page when switching languages
+        _selectedLetter = null; // Clear selection when switching languages
+      });
+      widget.onLanguageChanged?.call(language);
+    }
+  }
+
+  /// Get display code for language indicator on spacebar
+  String _getLanguageDisplayCode(String languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return 'eng';
+      case 'hi':
+        return 'hin';
+      case 'mr':
+        return 'mar';
+      default:
+        return languageCode.toLowerCase();
+    }
+  }
+
+  void _showLanguageModal() async {
+    // Notify parent that dialog is opening
+    widget.onDialogStateChanged?.call(true);
+    
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: KeyboardConstants.modalBackground,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Modal title
+                  const Text(
+                    'Select Language',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: KeyboardConstants.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Language options
+                  ...widget.supportedLanguages.map((lang) {
+                    final isSelected = _currentLanguage == lang;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Material(
+                        color: KeyboardConstants.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            _switchLanguage(lang);
+                            Navigator.of(context).pop();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 16,
+                              horizontal: 20,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected 
+                                  ? KeyboardConstants.primaryLight 
+                                  : KeyboardConstants.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected 
+                                    ? KeyboardConstants.primary 
+                                    : KeyboardConstants.borderLight,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    KeyboardLayout.getLanguageName(lang),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: isSelected 
+                                          ? FontWeight.w600 
+                                          : FontWeight.normal,
+                                      color: isSelected 
+                                          ? KeyboardConstants.primary 
+                                          : KeyboardConstants.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                                if (isSelected)
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: KeyboardConstants.primary,
+                                    size: 20,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    
+    // Notify parent that dialog is closed
+    widget.onDialogStateChanged?.call(false);
   }
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  /// Handle text input with additional processing
-  void _handleTextInput(String text) {
-    // Handle vowel, second row, and last row attachment replacement for Hindi/Marathi
-    if (_shouldReplaceConsonantWithAttachment(text)) {
-      _replaceConsonantWithAttachment(text);
-      return;
-    }
-
-    // Provide haptic feedback if enabled
-    if (widget.enableHapticFeedback) {
-      HapticFeedback.lightImpact();
-    }
-
-    // Call the provided callback
-    widget.onTextInput?.call(text);
-    widget.onKeyPressed?.call(text);
-  }
-
-  /// Check if we should replace consonant with attachment
-  bool _shouldReplaceConsonantWithAttachment(String key) {
-    return _controller.currentLanguage != 'en' && 
-           _controller.currentLayoutPage == 0 && 
-           _controller.selectedLetter != null &&
-           (_controller.isVowelAttachment(key) || 
-            _controller.isSecondRowAttachment(key) || 
-            _controller.isLastRowAttachment(key));
-  }
-
-  /// Replace the last consonant with consonant+vowel attachment
-  void _replaceConsonantWithAttachment(String attachment) {
-    // Send backspace then the attachment
-    widget.onTextInput?.call('⌫');
-    widget.onTextInput?.call(attachment);
-    _controller.handleLetterSelection(''); // Clear selection
-  }
-
-  /// Handle shift key press with double-tap detection
-  void _handleShiftPress() {
-    final now = DateTime.now();
-    if (_lastShiftTap != null && 
-        now.difference(_lastShiftTap!) < _doubleTapThreshold) {
-      // Double tap detected
-      _controller.handleShiftDoubleTap();
-    } else {
-      // Single tap
-      _controller.toggleShift();
-    }
-    _lastShiftTap = now;
-  }
-
-  /// Build a regular key
-  Widget _buildKey(String key, {double? keyHeight}) {
-    String displayKey = key;
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isLandscape = screenSize.width > screenSize.height;
     
-    // Handle case conversion for letters
-    if (_controller.isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase()) {
-      displayKey = key.toUpperCase();
-    }
+    // Responsive keyboard height management
+    final maxKeyboardHeight = isLandscape 
+        ? screenSize.height * 0.4  // 40% max in landscape
+        : screenSize.height * 0.5; // 50% max in portrait
     
-    return Expanded(
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: widget.height ?? maxKeyboardHeight,
+        minHeight: 0,
+      ),
       child: Container(
-        height: keyHeight ?? KeyboardConstants.defaultKeyHeight,
-        margin: const EdgeInsets.all(KeyboardConstants.keySpacing / 2),
-        child: Material(
-          color: widget.keyColor ?? KeyboardConstants.keyBackground,
-          borderRadius: BorderRadius.circular(KeyboardConstants.keyBorderRadius),
-          elevation: KeyboardConstants.keyElevation,
-          child: InkWell(
-            onTap: () => _controller.processKeyPress(displayKey),
-            borderRadius: BorderRadius.circular(KeyboardConstants.keyBorderRadius),
-            splashColor: KeyboardConstants.keySplashWithAlpha,
-            highlightColor: KeyboardConstants.keyHighlightWithAlpha,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(KeyboardConstants.keyBorderRadius),
-                border: Border.all(color: KeyboardConstants.keyBorder, width: 1),
-              ),
-              child: Center(
-                child: Text(
-                  displayKey,
-                  style: TextStyle(
-                    fontSize: KeyboardConstants.defaultFontSize,
-                    fontWeight: FontWeight.normal,
-                    color: widget.textColor ?? KeyboardConstants.keyText,
-                  ),
-                ),
-              ),
+        decoration: BoxDecoration(
+          color: widget.backgroundColor ?? KeyboardConstants.keyboardBackground,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
             ),
-          ),
+          ],
         ),
+        child: _buildAdaptiveKeyboardLayout(widget.height ?? maxKeyboardHeight),
       ),
     );
   }
 
-  /// Build a special key (shift, space, backspace, etc.)
-  Widget _buildSpecialKey({
-    required String label,
-    required VoidCallback onTap,
-    bool isActive = false,
-    double flex = 1.0,
-    double? keyHeight,
-    Widget? icon,
-  }) {
-    final keyColor = isActive 
-        ? KeyboardConstants.primary 
-        : KeyboardConstants.specialKeyDefault;
-    
-    final textColor = isActive 
-        ? KeyboardConstants.textOnPrimary 
-        : KeyboardConstants.textOnLight;
+  Widget _buildAdaptiveKeyboardLayout(double availableHeight) {
+    return _showNumericKeyboard 
+        ? _buildAdaptiveNumericKeyboardLayout(availableHeight)
+        : _buildAdaptiveAlphaKeyboardLayout(availableHeight);
+  }
 
-    return Expanded(
-      flex: flex.round(),
-      child: Container(
-        height: keyHeight ?? KeyboardConstants.defaultKeyHeight,
-        margin: const EdgeInsets.all(KeyboardConstants.keySpacing / 2),
-        child: Material(
-          color: keyColor,
-          borderRadius: BorderRadius.circular(KeyboardConstants.keyBorderRadius),
-          elevation: KeyboardConstants.keyElevation,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(KeyboardConstants.keyBorderRadius),
-            splashColor: KeyboardConstants.specialKeySplashWithAlpha,
-            highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(KeyboardConstants.keyBorderRadius),
-                border: Border.all(
-                  color: KeyboardConstants.specialKeyBorder, 
-                  width: 1
-                ),
-              ),
-              child: Center(
-                child: icon ?? Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: KeyboardConstants.defaultFontSize,
-                    fontWeight: FontWeight.normal,
-                    color: textColor,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
+  Widget _buildAdaptiveAlphaKeyboardLayout(double availableHeight) {
+    final layout = _getCurrentLayout();
+    
+    // Calculate adaptive key height dynamically
+    const double padding = 8.0; // Total padding from container
+    final int layoutRows = layout.length; // Dynamic based on layout array length
+    final int totalRows = layoutRows + 1; // Layout rows + 1 unified bottom row
+    
+    // Set natural key heights based on screen orientation
+    const double preferredKeyHeight = 45.0; // Comfortable key size
+    const double minKeyHeight = 30.0; // Minimum usability
+    const double maxKeyHeight = 50.0; // Maximum comfort
+    
+    // Calculate if we need to compress keys to fit in available space
+    final double naturalKeyboardHeight = (preferredKeyHeight * totalRows) + padding;
+    final double adaptiveKeyHeight = naturalKeyboardHeight <= availableHeight
+        ? preferredKeyHeight // Use natural size if it fits
+        : ((availableHeight - padding) / totalRows).clamp(minKeyHeight, maxKeyHeight); // Compress if needed
+    
+    return Padding(
+      padding: const EdgeInsets.all(4.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Build all layout rows dynamically
+          ...layout.asMap().entries.map((entry) {
+            final int index = entry.key;
+            final List<String> row = entry.value;
+            final bool isLastRow = index == layout.length - 1;
+            
+            return Flexible(
+              child: isLastRow
+                  // Last row uses buildBottomRow for shift and backspace functionality
+                  ? _buildBottomRow(
+                      row, 
+                      adaptiveKeyHeight,
+                    )
+                  // All other rows use regular buildKeyRow
+                  : _buildKeyRow(
+                      row, 
+                      adaptiveKeyHeight,
+                    ),
+            );
+          }),
+          
+          // Unified bottom row (spacebar, etc.)
+          Flexible(
+            child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  /// Build keyboard row
-  Widget _buildKeyboardRow(List<String> keys, {double? keyHeight}) {
+  Widget _buildAdaptiveNumericKeyboardLayout(double availableHeight) {
+    final layout = KeyboardLayout.getNumericLayout();
+    
+    // Calculate adaptive key height for numeric layout dynamically
+    const double padding = 8.0; // Total padding from container
+    final int layoutRows = layout.length; // Dynamic based on layout array length
+    final int totalRows = layoutRows + 1; // Layout rows + 1 unified bottom row
+    
+    // Set natural key heights based on screen orientation
+    const double preferredKeyHeight = 45.0; // Comfortable key size
+    const double minKeyHeight = 30.0; // Minimum usability
+    const double maxKeyHeight = 50.0; // Maximum comfort
+    
+    // Calculate if we need to compress keys to fit in available space
+    final double naturalKeyboardHeight = (preferredKeyHeight * totalRows) + padding;
+    final double adaptiveKeyHeight = naturalKeyboardHeight <= availableHeight
+        ? preferredKeyHeight // Use natural size if it fits
+        : ((availableHeight - padding) / totalRows).clamp(minKeyHeight, maxKeyHeight); // Compress if needed
+    
+    return Padding(
+      padding: const EdgeInsets.all(4.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Build all layout rows dynamically
+          ...layout.asMap().entries.map((entry) {
+            final int index = entry.key;
+            final List<String> row = entry.value;
+            final bool isLastRow = index == layout.length - 1;
+            
+            return Flexible(
+              child: isLastRow
+                  // Last row uses buildNumericBottomRow for special handling
+                  ? _buildNumericBottomRow(
+                      row, 
+                      adaptiveKeyHeight,
+                    )
+                  // All other rows use regular buildKeyRow
+                  : _buildKeyRow(
+                      row, 
+                      adaptiveKeyHeight,
+                    ),
+            );
+          }),
+
+          // Unified bottom row (spacebar, etc.)
+          Flexible(
+            child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKeyRow(List<String> keys, double keyHeight) {
     return Row(
-      children: keys.map((key) => _buildKey(key, keyHeight: keyHeight)).toList(),
+      children: keys.map((key) {
+        return Expanded(
+          child: _buildKey(key, keyHeight),
+        );
+      }).toList(),
     );
   }
 
-  /// Build special control row
-  Widget _buildControlRow() {
-    const keyHeight = KeyboardConstants.defaultKeyHeight;
-    
+  Widget _buildBottomRow(List<String> keys, double keyHeight) {
     return Row(
       children: [
-        // Shift key (English only)
-        if (_controller.currentLanguage == 'en')
-          _buildSpecialKey(
-            label: '⇧',
-            onTap: _handleShiftPress,
-            isActive: _controller.shiftState != ShiftState.off,
-            flex: 1.5,
-            keyHeight: keyHeight,
-          ),
-        
-        // Language switcher
-        if (widget.showLanguageSwitcher && widget.supportedLanguages.length > 1)
-          _buildSpecialKey(
-            label: KeyboardLayout.getLanguageName(_controller.currentLanguage),
-            onTap: _controller.switchToNextLanguage,
-            flex: 2.0,
-            keyHeight: keyHeight,
-          ),
-        
-        // Layout page switcher (Hindi/Marathi only)
-        if (_controller.currentLanguage != 'en')
-          _buildSpecialKey(
-            label: _controller.getLayoutPageText(),
-            onTap: _controller.switchLayoutPage,
-            flex: 1.0,
-            keyHeight: keyHeight,
-          ),
-        
-        // Space bar
-        _buildSpecialKey(
-          label: 'Space',
-          onTap: () => _controller.handleSpecialKey('space'),
-          flex: 4.0,
-          keyHeight: keyHeight,
+        // Shift key for English, Layout switcher for other languages
+        Expanded(
+          child: (_currentLanguage == 'en') 
+            ? _buildShiftKey(keyHeight)
+            : _buildLayoutSwitcherKey(keyHeight),
         ),
         
-        // Number toggle
-        _buildSpecialKey(
-          label: _controller.showNumericKeyboard ? 'ABC' : '123',
-          onTap: _controller.toggleNumericKeyboard,
-          flex: 1.5,
-          keyHeight: keyHeight,
-        ),
+        // Letter keys
+        ...keys.map((key) {
+          return Expanded(
+            child: _buildKey(key, keyHeight),
+          );
+        }),
         
-        // Backspace
-        _buildSpecialKey(
-          label: '⌫',
-          onTap: () => _controller.handleSpecialKey('backspace'),
-          flex: 1.5,
-          keyHeight: keyHeight,
-          icon: const Icon(Icons.backspace_outlined, color: KeyboardConstants.textOnLight),
+        // Backspace key
+        Expanded(
+          flex: 1,
+          child: _buildSpecialKey(
+            '⌫',
+            onTap: _onBackspace,
+            keyHeight: keyHeight,
+          ),
         ),
       ],
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final layout = _controller.getCurrentLayout();
-        final keyboardHeight = widget.height ?? (layout.length + 1) * (KeyboardConstants.defaultKeyHeight + KeyboardConstants.keySpacing);
-        
-        return Container(
-          height: keyboardHeight,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: widget.backgroundColor ?? KeyboardConstants.keyboardBackground,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
+  Widget _buildNumericBottomRow(List<String> keys, double keyHeight) {
+    return Row(
+      children: [
+        // Special symbols key (wider)
+        Expanded(
+          flex: 1,
+          child: _buildSpecialKey(
+            keys[0], // 'more'
+            onTap: () {
+              if (keys[0].contains('more')) {
+                return;
+              } else {
+                _onKeyPress(keys[0]);
+              }
+            },
+            keyHeight: keyHeight,
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(KeyboardConstants.keySpacing),
-            child: Column(
-              children: [
-                // Keyboard layout rows
-                ...layout.map((row) => Expanded(
-                  child: _buildKeyboardRow(row),
-                )),
-                
-                // Control row
-                SizedBox(
-                  height: KeyboardConstants.defaultKeyHeight + KeyboardConstants.keySpacing,
-                  child: _buildControlRow(),
+        ),
+        
+        // Regular symbol keys
+        ...keys.skip(1).map((key) {
+          return Expanded(
+            child: _buildKey(key, keyHeight),
+          );
+        }),
+        
+        // Backspace key
+        Expanded(
+          flex: 1,
+          child: _buildSpecialKey(
+            '⌫',
+            onTap: _onBackspace,
+            keyHeight: keyHeight,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdaptiveUnifiedBottomRow(double keyHeight) {
+    return Row(
+      children: [
+        // Toggle button (?123 or ABC)
+        Expanded(
+          flex: 2,
+          child: _buildSpecialKey(
+            _showNumericKeyboard ? 'ABC' : '?123',
+            onTap: _toggleNumericKeyboard,
+            keyHeight: keyHeight,
+          ),
+        ),
+        
+        // Comma key
+        Expanded(
+          flex: 2,
+          child: _buildKey(',', keyHeight),
+        ),
+        
+        // Spacebar with language switching and language indicator
+        Expanded(
+          flex: 6,
+          child: Material(
+            color: widget.keyColor ?? KeyboardConstants.keyBackground,
+            borderRadius: BorderRadius.circular(6),
+            elevation: 1,
+            child: InkWell(
+              onTap: () => _onKeyPress(' '),
+              onLongPress: widget.showLanguageSwitcher ? _toggleLanguageSelector : null,
+              borderRadius: BorderRadius.circular(6),
+              splashColor: KeyboardConstants.keySplashWithAlpha,
+              highlightColor: KeyboardConstants.keyHighlightWithAlpha,
+              child: Container(
+                height: keyHeight,
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: KeyboardConstants.keyBorder, width: 1),
                 ),
-              ],
+                child: Stack(
+                  children: [
+                    // Centered space symbol
+                    const Center(
+                      child: Text(
+                        '␣',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: KeyboardConstants.keyText,
+                        ),
+                      ),
+                    ),
+                    // Language indicator positioned on the right
+                    if (widget.showLanguageSwitcher)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: Center(
+                          child: Text(
+                            _getLanguageDisplayCode(_currentLanguage),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: KeyboardConstants.textGrey,
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
-        );
-      },
+        ),
+        
+        // Period key
+        Expanded(
+          flex: 2,
+          child: _buildKey('.', keyHeight),
+        ),
+        
+        // Enter key
+        Expanded(
+          flex: 2,
+          child: _buildSpecialKey(
+            '↵',
+            onTap: () => _onKeyPress('\n'),
+            keyHeight: keyHeight,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildKey(String key, double keyHeight) {
+    String displayKey = key;
+    
+    // Handle case conversion for letters
+    if (_isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase()) {
+      displayKey = key.toUpperCase();
+    }
+    
+    return Container(
+      height: keyHeight,
+      margin: const EdgeInsets.all(2.0),
+      child: Material(
+        color: widget.keyColor ?? KeyboardConstants.keyBackground,
+        borderRadius: BorderRadius.circular(6),
+        elevation: 1,
+        child: InkWell(
+          onTap: () => _onKeyPress(displayKey),
+          borderRadius: BorderRadius.circular(6),
+          splashColor: KeyboardConstants.keySplashWithAlpha,
+          highlightColor: KeyboardConstants.keyHighlightWithAlpha,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: KeyboardConstants.keyBorder, width: 1),
+            ),
+            child: Center(
+              child: Text(
+                displayKey,
+                style: TextStyle(
+                  fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
+                  fontWeight: FontWeight.normal,
+                  color: widget.textColor ?? KeyboardConstants.keyText,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpecialKey(String label, {VoidCallback? onTap, double? keyHeight}) {
+    return Container(
+      height: keyHeight,
+      margin: const EdgeInsets.all(2.0),
+      child: Material(
+        color: KeyboardConstants.specialKeyDefault,
+        borderRadius: BorderRadius.circular(6),
+        elevation: 1,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          splashColor: KeyboardConstants.specialKeySplashWithAlpha,
+          highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: KeyboardConstants.specialKeyBorder, 
+                width: 1
+              ),
+            ),
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: (keyHeight != null ? (keyHeight * 0.35).toDouble() : 16.0).clamp(10.0, 16.0),
+                  color: KeyboardConstants.textOnLight,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShiftKey(double keyHeight) {
+    final isActive = _shiftState != ShiftState.off;
+    final keyColor = isActive ? KeyboardConstants.primary : KeyboardConstants.specialKeyDefault;
+    final textColor = isActive ? KeyboardConstants.textOnPrimary : KeyboardConstants.textOnLight;
+    
+    return Container(
+      height: keyHeight,
+      margin: const EdgeInsets.all(2.0),
+      child: Material(
+        color: keyColor,
+        borderRadius: BorderRadius.circular(6),
+        elevation: 1,
+        child: InkWell(
+          onTap: _toggleCase,
+          borderRadius: BorderRadius.circular(6),
+          splashColor: KeyboardConstants.specialKeySplashWithAlpha,
+          highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: KeyboardConstants.specialKeyBorder, 
+                width: 1
+              ),
+            ),
+            child: Center(
+              child: Text(
+                '⇧',
+                style: TextStyle(
+                  fontSize: (keyHeight * 0.35).clamp(10.0, 16.0),
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLayoutSwitcherKey(double keyHeight) {
+    return Container(
+      height: keyHeight,
+      margin: const EdgeInsets.all(2.0),
+      child: Material(
+        color: KeyboardConstants.specialKeyDefault,
+        borderRadius: BorderRadius.circular(6),
+        elevation: 1,
+        child: InkWell(
+          onTap: _toggleCase,
+          borderRadius: BorderRadius.circular(6),
+          splashColor: KeyboardConstants.specialKeySplashWithAlpha,
+          highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: KeyboardConstants.specialKeyBorder, 
+                width: 1
+              ),
+            ),
+            child: Center(
+              child: Text(
+                _getLayoutPageText(),
+                style: TextStyle(
+                  fontSize: (keyHeight * 0.35).clamp(10.0, 16.0),
+                  color: KeyboardConstants.textOnLight,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

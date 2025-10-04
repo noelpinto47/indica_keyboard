@@ -109,18 +109,20 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: _textController,
-                    focusNode: _focusNode,
-                    maxLines: null,
-                    expands: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Tap here to start typing...',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.all(16),
+                  Expanded(
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _focusNode,
+                      maxLines: null,
+                      expands: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Tap here to start typing...',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.all(16),
+                      ),
+                      style: const TextStyle(fontSize: 18),
+                      readOnly: true, // Prevent system keyboard
                     ),
-                    style: const TextStyle(fontSize: 18),
-                    readOnly: true, // Prevent system keyboard
                   ),
                   const SizedBox(height: 16),
                   Row(
