@@ -12,8 +12,6 @@ topics:
   - hindi
   - marathi
   - devanagari
-  - input-method
-  - flutter-plugin
 
 environment:
   sdk: ^3.9.0
