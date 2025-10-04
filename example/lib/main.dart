@@ -178,6 +178,7 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
               onDialogStateChanged: _handleDialogStateChanged,
               showLanguageSwitcher: true,
               enableHapticFeedback: true,
+              primaryColor: Colors.red, // Custom primary color
             ),
         ],
       ),

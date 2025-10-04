@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/keyboard_layout.dart';
 import '../constants/keyboard_constants.dart';
 
@@ -22,6 +23,7 @@ class MultilingualKeyboard extends StatefulWidget {
   final Color? backgroundColor;
   final Color? keyColor;
   final Color? textColor;
+  final Color? primaryColor;
   final bool showLanguageSwitcher;
   final bool enableHapticFeedback;
   
@@ -38,6 +40,7 @@ class MultilingualKeyboard extends StatefulWidget {
     this.backgroundColor,
     this.keyColor,
     this.textColor,
+    this.primaryColor,
     this.showLanguageSwitcher = true,
     this.enableHapticFeedback = true,
   });
@@ -209,6 +212,28 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
     }
   }
 
+  /// Helper method to get shift key icon path based on state
+  String _getShiftIconPath(ShiftState shiftState) {
+    switch (shiftState) {
+      case ShiftState.capsLock:
+        return 'packages/indica_keyboard/assets/icons/caps-lock-hold.svg'; // Caps lock enabled
+      case ShiftState.single:
+        return 'packages/indica_keyboard/assets/icons/caps-lock-enabled.svg'; // Single tap - hold state
+      case ShiftState.off:
+        return 'packages/indica_keyboard/assets/icons/default-caps-lock-off.svg'; // Default off state
+    }
+  }
+
+  /// Helper method to get the effective primary color
+  Color _getEffectivePrimaryColor() {
+    return widget.primaryColor ?? KeyboardConstants.primary;
+  }
+
+  /// Helper method to get the effective primary light color
+  Color _getEffectivePrimaryLightColor() {
+    return widget.primaryColor?.withValues(alpha: 0.1) ?? KeyboardConstants.primaryLight;
+  }
+
   void _showLanguageModal() async {
     // Notify parent that dialog is opening
     widget.onDialogStateChanged?.call(true);
@@ -263,12 +288,12 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
                             ),
                             decoration: BoxDecoration(
                               color: isSelected 
-                                  ? KeyboardConstants.primaryLight 
+                                  ? _getEffectivePrimaryLightColor() 
                                   : KeyboardConstants.transparent,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: isSelected 
-                                    ? KeyboardConstants.primary 
+                                    ? _getEffectivePrimaryColor() 
                                     : KeyboardConstants.borderLight,
                                 width: 1,
                               ),
@@ -284,15 +309,15 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
                                           ? FontWeight.w600 
                                           : FontWeight.normal,
                                       color: isSelected 
-                                          ? KeyboardConstants.primary 
+                                          ? _getEffectivePrimaryColor() 
                                           : KeyboardConstants.textPrimary,
                                     ),
                                   ),
                                 ),
                                 if (isSelected)
-                                  const Icon(
+                                  Icon(
                                     Icons.check_circle,
-                                    color: KeyboardConstants.primary,
+                                    color: _getEffectivePrimaryColor(),
                                     size: 20,
                                   ),
                               ],
@@ -714,15 +739,13 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   }
 
   Widget _buildShiftKey(double keyHeight) {
-    final isActive = _shiftState != ShiftState.off;
-    final keyColor = isActive ? KeyboardConstants.primary : KeyboardConstants.specialKeyDefault;
-    final textColor = isActive ? KeyboardConstants.textOnPrimary : KeyboardConstants.textOnLight;
+    final iconPath = _getShiftIconPath(_shiftState);
     
     return Container(
       height: keyHeight,
       margin: const EdgeInsets.all(2.0),
       child: Material(
-        color: keyColor,
+        color: KeyboardConstants.specialKeyDefault,
         borderRadius: BorderRadius.circular(6),
         elevation: 1,
         child: InkWell(
@@ -739,13 +762,13 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
               ),
             ),
             child: Center(
-              child: Text(
-                '⇧',
-                style: TextStyle(
-                  fontSize: (keyHeight * 0.35).clamp(10.0, 16.0),
-                  color: textColor,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: SvgPicture.asset(
+                iconPath,
+                width: _shiftState == ShiftState.capsLock ? 12 : 8,
+                height: _shiftState == ShiftState.capsLock ? 12 : 8,
+                colorFilter: _shiftState == ShiftState.off 
+                    ? ColorFilter.mode(Colors.black26, BlendMode.srcIn)
+                    : null,
               ),
             ),
           ),
