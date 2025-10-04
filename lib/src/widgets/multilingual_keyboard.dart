@@ -722,14 +722,16 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
               ),
             ),
             child: Center(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: (keyHeight != null ? (keyHeight * 0.35).toDouble() : 16.0).clamp(10.0, 16.0),
-                  color: KeyboardConstants.textOnLight,
-                  fontWeight: FontWeight.w500,
+              child: FittedBox(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: (keyHeight != null ? (keyHeight * 0.35).toDouble() : 16.0).clamp(10.0, 16.0),
+                    color: KeyboardConstants.textOnLight,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
               ),
             ),
           ),
