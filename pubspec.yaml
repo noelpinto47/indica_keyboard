@@ -1,7 +1,19 @@
 name: indica_keyboard
-description: "A comprehensive multilingual keyboard plugin for Flutter supporting English, Hindi, and Marathi with intelligent text input capabilities."
+description: "A comprehensive multilingual keyboard plugin for Flutter supporting English, Hindi, and Marathi with intelligent text input capabilities, SVG icons, haptic feedback, and performance optimizations."
 version: 0.0.1
 homepage: https://github.com/noelpinto47/indica_keyboard
+repository: https://github.com/noelpinto47/indica_keyboard
+issue_tracker: https://github.com/noelpinto47/indica_keyboard/issues
+documentation: https://github.com/noelpinto47/indica_keyboard#readme
+
+topics:
+  - keyboard
+  - multilingual
+  - hindi
+  - marathi
+  - devanagari
+  - input-method
+  - flutter-plugin
 
 environment:
   sdk: ^3.9.0
