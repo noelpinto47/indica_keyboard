@@ -53,6 +53,12 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   String _currentLanguage = 'en';
   final Map<String, List<List<String>>> _layouts = {};
   
+  // Performance optimizations: Cache frequently accessed values
+  late final Map<String, TextStyle> _cachedTextStyles = {};
+  late final Map<String, BoxDecoration> _cachedDecorations = {};
+  List<List<String>>? _cachedCurrentLayout;
+  bool _layoutCacheInvalid = true;
+  
   // Layout page management for non-English keyboards
   int _currentLayoutPage = 0;
   final Map<String, int> _maxLayoutPages = {'hi': 4, 'mr': 4}; // Hindi and Marathi have 4 pages
@@ -70,31 +76,88 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   DateTime? _lastShiftTap;
   static const doubleTapThreshold = Duration(milliseconds: 300);
   
+  // Performance: Pre-computed constants
+  static const _keyMargin = EdgeInsets.all(2.0);
+  static const _keyBorderRadius = BorderRadius.all(Radius.circular(6));
+  
   @override
   void initState() {
     super.initState();
     _currentLanguage = widget.initialLanguage;
     _loadKeyboardLayouts();
+    
+    // Performance: Pre-warm all caches for zero-latency access
+    KeyboardLayout.preWarmAllCaches();
   }
   
   void _loadKeyboardLayouts() {
-    // Pre-load all language layouts into memory
+    // Pre-load ALL language layouts into memory for all pages
     // No dynamic loading during typing = consistent performance
     for (final lang in widget.supportedLanguages) {
       _layouts[lang] = KeyboardLayout.getLayoutForLanguage(lang, page: 0);
+      
+      // Pre-load all pages for non-English languages
+      if (lang != 'en') {
+        final maxPages = _maxLayoutPages[lang] ?? 1;
+        for (int page = 0; page < maxPages; page++) {
+          KeyboardLayout.getLayoutForLanguage(lang, page: page);
+        }
+      }
     }
+    
+    // Pre-load numeric layout
+    KeyboardLayout.getNumericLayout();
+    
+    // Pre-compute text styles for different key heights
+    _precomputeStyles();
+  }
+  
+  void _precomputeStyles() {
+    // Pre-compute common text styles to avoid repeated calculations
+    for (double height in [30.0, 35.0, 40.0, 45.0, 50.0]) {
+      final fontSize = (height * 0.4).clamp(12.0, 18.0);
+      _cachedTextStyles[height.toString()] = TextStyle(
+        fontSize: fontSize,
+        fontWeight: FontWeight.normal,
+        color: widget.textColor ?? KeyboardConstants.keyText,
+      );
+    }
+    
+    // Pre-compute decorations
+    _cachedDecorations['key'] = BoxDecoration(
+      borderRadius: _keyBorderRadius,
+      border: Border.all(color: KeyboardConstants.keyBorder, width: 1),
+    );
+    
+    _cachedDecorations['special'] = BoxDecoration(
+      borderRadius: _keyBorderRadius,
+      border: Border.all(color: KeyboardConstants.specialKeyBorder, width: 1),
+    );
   }
 
   // Get current layout based on language, page, and selected letter
   List<List<String>> _getCurrentLayout() {
-    if (_showNumericKeyboard) {
-      return KeyboardLayout.getNumericLayout();
+    // Use cached layout if available and valid
+    if (!_layoutCacheInvalid && _cachedCurrentLayout != null) {
+      return _cachedCurrentLayout!;
     }
-    return KeyboardLayout.getLayoutForLanguage(
-      _currentLanguage, 
-      page: _currentLayoutPage,
-      selectedLetter: _selectedLetter,
-    );
+    
+    List<List<String>> layout;
+    if (_showNumericKeyboard) {
+      layout = KeyboardLayout.getNumericLayout();
+    } else {
+      layout = KeyboardLayout.getLayoutForLanguage(
+        _currentLanguage, 
+        page: _currentLayoutPage,
+        selectedLetter: _selectedLetter,
+      );
+    }
+    
+    // Cache the layout
+    _cachedCurrentLayout = layout;
+    _layoutCacheInvalid = false;
+    
+    return layout;
   }
 
   // Switch to next layout page (for non-English keyboards)
@@ -105,6 +168,7 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
     setState(() {
       _currentLayoutPage = (_currentLayoutPage + 1) % maxPages;
       _selectedLetter = null; // Clear selection when switching pages
+      _layoutCacheInvalid = true; // Invalidate layout cache
     });
   }
 
@@ -115,29 +179,27 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
     return '${_currentLayoutPage + 1}/$maxPages';
   }
 
-  // CRITICAL PATH: This runs on every key press
-  Future<void> _onKeyPress(String key) async {
-    try {
-      // Handle three-state capitalization
-      String finalKey = key;
-      if (_isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase()) {
-        finalKey = key.toUpperCase();
-        
-        // Auto-reset shift state after single character for 'single' mode
-        if (_shiftState == ShiftState.single) {
-          setState(() {
-            _shiftState = ShiftState.off;
-          });
-        }
-      }
-      
-      // Send text to callback
-      widget.onTextInput?.call(finalKey);
-      widget.onKeyPressed?.call(finalKey);
-      
-    } catch (e) {
-      // Fallback handling
-      widget.onTextInput?.call(key);
+  // CRITICAL PATH: This runs on every key press - OPTIMIZED FOR ZERO LATENCY
+  void _onKeyPress(String key) {
+    // PERFORMANCE: Remove try-catch from critical path
+    // Handle three-state capitalization inline for speed
+    final shouldUpperCase = _isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase();
+    final finalKey = shouldUpperCase ? key.toUpperCase() : key;
+    
+    // PERFORMANCE: Batch state updates to minimize rebuilds
+    bool needsStateUpdate = false;
+    if (_shiftState == ShiftState.single && shouldUpperCase) {
+      _shiftState = ShiftState.off;
+      needsStateUpdate = true;
+    }
+    
+    // Send text immediately (don't await)
+    widget.onTextInput?.call(finalKey);
+    widget.onKeyPressed?.call(finalKey);
+    
+    // Update state only if needed
+    if (needsStateUpdate) {
+      setState(() {});
     }
   }
 
@@ -188,11 +250,12 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   }
 
   void _switchLanguage(String language) {
-    if (mounted) {
+    if (mounted && language != _currentLanguage) { // Avoid unnecessary updates
       setState(() {
         _currentLanguage = language;
         _currentLayoutPage = 0; // Reset to first page when switching languages
         _selectedLetter = null; // Clear selection when switching languages
+        _layoutCacheInvalid = true; // Invalidate layout cache
       });
       widget.onLanguageChanged?.call(language);
     }
@@ -358,13 +421,6 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
         decoration: BoxDecoration(
           color: widget.backgroundColor ?? KeyboardConstants.keyboardBackground,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
         ),
         child: _buildAdaptiveKeyboardLayout(widget.height ?? maxKeyboardHeight),
       ),
@@ -397,7 +453,7 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
         : ((availableHeight - padding) / totalRows).clamp(minKeyHeight, maxKeyHeight); // Compress if needed
     
     return Padding(
-      padding: const EdgeInsets.all(4.0),
+      padding: const EdgeInsets.all(2.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -451,7 +507,7 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
         : ((availableHeight - padding) / totalRows).clamp(minKeyHeight, maxKeyHeight); // Compress if needed
     
     return Padding(
-      padding: const EdgeInsets.all(4.0),
+      padding: const EdgeInsets.all(2.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -660,44 +716,42 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   }
 
   Widget _buildKey(String key, double keyHeight) {
-    String displayKey = key;
+    // PERFORMANCE: Pre-compute case conversion
+    final shouldUpperCase = _isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase();
+    final displayKey = shouldUpperCase ? key.toUpperCase() : key;
     
-    // Handle case conversion for letters
-    if (_isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase()) {
-      displayKey = key.toUpperCase();
-    }
+    // PERFORMANCE: Use cached text style if available
+    final textStyle = _cachedTextStyles[keyHeight.toString()] ?? TextStyle(
+      fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
+      fontWeight: FontWeight.normal,
+      color: widget.textColor ?? KeyboardConstants.keyText,
+    );
     
-    return Container(
+    return RepaintBoundary( // PERFORMANCE: Prevent unnecessary repaints
+      child: Container(
       height: keyHeight,
-      margin: const EdgeInsets.all(2.0),
+      margin: _keyMargin, // Use pre-computed constant
       child: Material(
         color: widget.keyColor ?? KeyboardConstants.keyBackground,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: _keyBorderRadius, // Use pre-computed constant
         elevation: 1,
         child: InkWell(
           onTap: () => _onKeyPress(displayKey),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: _keyBorderRadius, // Use pre-computed constant
           splashColor: KeyboardConstants.keySplashWithAlpha,
           highlightColor: KeyboardConstants.keyHighlightWithAlpha,
           child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: KeyboardConstants.keyBorder, width: 1),
-            ),
+            decoration: _cachedDecorations['key'], // Use cached decoration
             child: Center(
               child: Text(
                 displayKey,
-                style: TextStyle(
-                  fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
-                  fontWeight: FontWeight.normal,
-                  color: widget.textColor ?? KeyboardConstants.keyText,
-                ),
+                style: textStyle, // Use cached/pre-computed style
               ),
             ),
           ),
         ),
       ),
-    );
+    ),); // RepaintBoundary
   }
 
   Widget _buildSpecialKey(String label, {VoidCallback? onTap, double? keyHeight}) {
