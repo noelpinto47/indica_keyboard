@@ -23,7 +23,7 @@ class KeyboardConstants {
   // Key colors
   static const Color keyBackground = Colors.white;
   static const Color keyBorder = Color.fromARGB(124, 208, 208, 208);
-  static const Color specialKeyBorder = Color.fromARGB(125, 249, 249, 249);
+  static const Color specialKeyBorder = Color.fromARGB(124, 208, 208, 208);
   static const Color keyText = Colors.black;
   static const Color specialKeyDefault = Color(0xFFB8B8B8); // Default gray
   

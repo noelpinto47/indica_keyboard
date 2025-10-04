@@ -77,7 +77,6 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   static const doubleTapThreshold = Duration(milliseconds: 300);
   
   // Performance: Pre-computed constants
-  static const _keyMargin = EdgeInsets.all(2.0);
   static const _keyBorderRadius = BorderRadius.all(Radius.circular(6));
   
   @override
@@ -452,38 +451,35 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
         ? preferredKeyHeight // Use natural size if it fits
         : ((availableHeight - padding) / totalRows).clamp(minKeyHeight, maxKeyHeight); // Compress if needed
     
-    return Padding(
-      padding: const EdgeInsets.all(2.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Build all layout rows dynamically
-          ...layout.asMap().entries.map((entry) {
-            final int index = entry.key;
-            final List<String> row = entry.value;
-            final bool isLastRow = index == layout.length - 1;
-            
-            return Flexible(
-              child: isLastRow
-                  // Last row uses buildBottomRow for shift and backspace functionality
-                  ? _buildBottomRow(
-                      row, 
-                      adaptiveKeyHeight,
-                    )
-                  // All other rows use regular buildKeyRow
-                  : _buildKeyRow(
-                      row, 
-                      adaptiveKeyHeight,
-                    ),
-            );
-          }),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Build all layout rows dynamically
+        ...layout.asMap().entries.map((entry) {
+          final int index = entry.key;
+          final List<String> row = entry.value;
+          final bool isLastRow = index == layout.length - 1;
           
-          // Unified bottom row (spacebar, etc.)
-          Flexible(
-            child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight),
-          ),
-        ],
-      ),
+          return Flexible(
+            child: isLastRow
+                // Last row uses buildBottomRow for shift and backspace functionality
+                ? _buildBottomRow(
+                    row, 
+                    adaptiveKeyHeight,
+                  )
+                // All other rows use regular buildKeyRow
+                : _buildKeyRow(
+                    row, 
+                    adaptiveKeyHeight,
+                  ),
+          );
+        }),
+        
+        // Unified bottom row (spacebar, etc.)
+        Flexible(
+          child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight),
+        ),
+      ],
     );
   }
 
@@ -506,38 +502,35 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
         ? preferredKeyHeight // Use natural size if it fits
         : ((availableHeight - padding) / totalRows).clamp(minKeyHeight, maxKeyHeight); // Compress if needed
     
-    return Padding(
-      padding: const EdgeInsets.all(2.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Build all layout rows dynamically
-          ...layout.asMap().entries.map((entry) {
-            final int index = entry.key;
-            final List<String> row = entry.value;
-            final bool isLastRow = index == layout.length - 1;
-            
-            return Flexible(
-              child: isLastRow
-                  // Last row uses buildNumericBottomRow for special handling
-                  ? _buildNumericBottomRow(
-                      row, 
-                      adaptiveKeyHeight,
-                    )
-                  // All other rows use regular buildKeyRow
-                  : _buildKeyRow(
-                      row, 
-                      adaptiveKeyHeight,
-                    ),
-            );
-          }),
-
-          // Unified bottom row (spacebar, etc.)
-          Flexible(
-            child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight),
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Build all layout rows dynamically
+        ...layout.asMap().entries.map((entry) {
+          final int index = entry.key;
+          final List<String> row = entry.value;
+          final bool isLastRow = index == layout.length - 1;
+          
+          return Flexible(
+            child: isLastRow
+                // Last row uses buildNumericBottomRow for special handling
+                ? _buildNumericBottomRow(
+                    row, 
+                    adaptiveKeyHeight,
+                  )
+                // All other rows use regular buildKeyRow
+                : _buildKeyRow(
+                    row, 
+                    adaptiveKeyHeight,
+                  ),
+          );
+        }),
+    
+        // Unified bottom row (spacebar, etc.)
+        Flexible(
+          child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight),
+        ),
+      ],
     );
   }
 
@@ -728,9 +721,8 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
     );
     
     return RepaintBoundary( // PERFORMANCE: Prevent unnecessary repaints
-      child: Container(
+      child: SizedBox(
       height: keyHeight,
-      margin: _keyMargin, // Use pre-computed constant
       child: Material(
         color: widget.keyColor ?? KeyboardConstants.keyBackground,
         borderRadius: _keyBorderRadius, // Use pre-computed constant
@@ -755,9 +747,8 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   }
 
   Widget _buildSpecialKey(String label, {VoidCallback? onTap, double? keyHeight}) {
-    return Container(
+    return SizedBox(
       height: keyHeight,
-      margin: const EdgeInsets.all(2.0),
       child: Material(
         color: KeyboardConstants.specialKeyDefault,
         borderRadius: BorderRadius.circular(6),
@@ -768,6 +759,7 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
           splashColor: KeyboardConstants.specialKeySplashWithAlpha,
           highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
           child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 2.0),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
@@ -797,9 +789,8 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   Widget _buildShiftKey(double keyHeight) {
     final iconPath = _getShiftIconPath(_shiftState);
     
-    return Container(
+    return SizedBox(
       height: keyHeight,
-      margin: const EdgeInsets.all(2.0),
       child: Material(
         color: KeyboardConstants.specialKeyDefault,
         borderRadius: BorderRadius.circular(6),
@@ -834,9 +825,8 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   }
 
   Widget _buildLayoutSwitcherKey(double keyHeight) {
-    return Container(
+    return SizedBox(
       height: keyHeight,
-      margin: const EdgeInsets.all(2.0),
       child: Material(
         color: KeyboardConstants.specialKeyDefault,
         borderRadius: BorderRadius.circular(6),
