@@ -11,10 +11,10 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Multilingual Keyboard Demo',
+      title: 'Indica Keyboard Demo',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
         useMaterial3: true,
       ),
       home: const KeyboardDemoPage(),
@@ -65,35 +65,6 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
     super.dispose();
   }
 
-  void _handleTextInput(String text) {
-    if (text == '⌫') {
-      // Handle backspace
-      if (_textController.text.isNotEmpty) {
-        final currentText = _textController.text;
-        final newText = currentText.substring(0, currentText.length - 1);
-        _textController.value = TextEditingValue(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newText.length),
-        );
-      }
-    } else {
-      // Handle regular text input
-      final currentText = _textController.text;
-      final selection = _textController.selection;
-      final newText = currentText.replaceRange(
-        selection.start,
-        selection.end,
-        text,
-      );
-      final newOffset = selection.start + text.length;
-      
-      _textController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: newOffset),
-      );
-    }
-  }
-
   void _handleLanguageChanged(String language) {
     setState(() {
       _currentLanguage = language;
@@ -110,9 +81,11 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Text('Multilingual Keyboard Demo'),
-        centerTitle: true,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        title: const Text(
+          'Indica Keyboard Demo',
+          style: TextStyle(color: Colors.white),
+        ),
       ),
       body: Column(
         children: [
@@ -140,7 +113,10 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
                         contentPadding: EdgeInsets.all(16),
                       ),
                       style: const TextStyle(fontSize: 18),
-                      readOnly: true, // Prevent system keyboard
+                      showCursor: true,
+                      readOnly: false,
+                      enableInteractiveSelection: true,
+                      keyboardType: TextInputType.none,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -159,7 +135,9 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
                             _showKeyboard = !_showKeyboard;
                           });
                         },
-                        child: Text(_showKeyboard ? 'Hide Keyboard' : 'Show Keyboard'),
+                        child: Text(
+                          _showKeyboard ? 'Hide Keyboard' : 'Show Keyboard',
+                        ),
                       ),
                     ],
                   ),
@@ -167,13 +145,13 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
               ),
             ),
           ),
-          
-          // Multilingual keyboard
+
+          // Indica keyboard
           if (_showKeyboard)
-            MultilingualKeyboard(
+            IndicaKeyboard(
               supportedLanguages: const ['en', 'hi', 'mr'],
               initialLanguage: 'en',
-              onTextInput: _handleTextInput,
+              textController: _textController,
               onLanguageChanged: _handleLanguageChanged,
               onDialogStateChanged: _handleDialogStateChanged,
               showLanguageSwitcher: true,
@@ -187,10 +165,14 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
 
   String _getLanguageName(String code) {
     switch (code) {
-      case 'en': return 'English';
-      case 'hi': return 'हिंदी (Hindi)';
-      case 'mr': return 'मराठी (Marathi)';
-      default: return code.toUpperCase();
+      case 'en':
+        return 'English';
+      case 'hi':
+        return 'हिंदी (Hindi)';
+      case 'mr':
+        return 'मराठी (Marathi)';
+      default:
+        return code.toUpperCase();
     }
   }
 }

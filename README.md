@@ -35,19 +35,6 @@ class MyKeyboardApp extends StatefulWidget {
 class _MyKeyboardAppState extends State<MyKeyboardApp> {
   final TextEditingController _textController = TextEditingController();
 
-  void _handleTextInput(String text) {
-    if (text == '⌫') {
-      // Handle backspace
-      if (_textController.text.isNotEmpty) {
-        final currentText = _textController.text;
-        _textController.text = currentText.substring(0, currentText.length - 1);
-      }
-    } else {
-      // Handle regular text input
-      _textController.text += text;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -57,11 +44,12 @@ class _MyKeyboardAppState extends State<MyKeyboardApp> {
             child: TextField(
               controller: _textController,
               decoration: InputDecoration(hintText: 'Start typing...'),
+              keyboardType: TextInputType.none, // Prevent system keyboard
             ),
           ),
-          MultilingualKeyboard(
+          IndicaKeyboard(
             supportedLanguages: ['en', 'hi', 'mr'],
-            onTextInput: _handleTextInput,
+            textController: _textController, // Pass the controller directly
             onLanguageChanged: (language) {
               print('Language changed to: $language');
             },
@@ -78,12 +66,13 @@ class _MyKeyboardAppState extends State<MyKeyboardApp> {
 ### Custom Styling
 
 ```dart
-MultilingualKeyboard(
+IndicaKeyboard(
   supportedLanguages: ['en', 'hi', 'mr'],
-  onTextInput: _handleTextInput,
+  textController: _textController,
   backgroundColor: Colors.grey[100],
   keyColor: Colors.white,
   textColor: Colors.black,
+  primaryColor: Colors.blue,
   height: 300,
   enableHapticFeedback: true,
   showLanguageSwitcher: true,

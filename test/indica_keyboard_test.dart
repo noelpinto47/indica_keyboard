@@ -20,7 +20,7 @@ void main() {
   });
 
   test('getPlatformVersion', () async {
-    IndicaKeyboard indicaKeyboardPlugin = IndicaKeyboard();
+    IndicaKeyboardPlugin indicaKeyboardPlugin = IndicaKeyboardPlugin();
     MockIndicaKeyboardPlatform fakePlatform = MockIndicaKeyboardPlatform();
     IndicaKeyboardPlatform.instance = fakePlatform;
 

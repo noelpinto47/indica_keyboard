@@ -10,9 +10,125 @@ enum ShiftState {
   capsLock,   // all letters capitalized
 }
 
-/// Main multilingual keyboard widget based on MinimalExamKeyboard
-class MultilingualKeyboard extends StatefulWidget {
+/// A complete keyboard input solution that provides both a text field and keyboard
+class IndicaKeyboardField extends StatefulWidget {
+  final List<String> supportedLanguages;
+  final TextEditingController? textController;
+  final String? hintText;
+  final TextStyle? textStyle;
+  final InputDecoration? decoration;
+  final Function(String)? onLanguageChanged;
+  final Color? primaryColor;
+  final bool showLanguageSwitcher;
+  final bool enableHapticFeedback;
+  final double? keyboardHeight;
+
+  const IndicaKeyboardField({
+    super.key,
+    required this.supportedLanguages,
+    this.textController,
+    this.hintText = 'Tap here to start typing...',
+    this.textStyle,
+    this.decoration,
+    this.onLanguageChanged,
+    this.primaryColor,
+    this.showLanguageSwitcher = true,
+    this.enableHapticFeedback = true,
+    this.keyboardHeight,
+  });
+
+  @override
+  State<IndicaKeyboardField> createState() => _IndicaKeyboardFieldState();
+}
+
+class _IndicaKeyboardFieldState extends State<IndicaKeyboardField> {
+  late TextEditingController _textController;
+  late FocusNode _focusNode;
+  bool _showKeyboard = false;
+  bool _isDialogOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = widget.textController ?? TextEditingController();
+    _focusNode = FocusNode();
+
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        setState(() {
+          _showKeyboard = true;
+        });
+      } else {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted && !_isDialogOpen && !_focusNode.hasFocus) {
+            setState(() {
+              _showKeyboard = false;
+            });
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    if (widget.textController == null) {
+      _textController.dispose();
+    }
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleLanguageChanged(String language) {
+    widget.onLanguageChanged?.call(language);
+  }
+
+  void _handleDialogStateChanged(bool isOpen) {
+    setState(() {
+      _isDialogOpen = isOpen;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextField(
+          controller: _textController,
+          focusNode: _focusNode,
+          style: widget.textStyle ?? const TextStyle(fontSize: 18),
+          decoration: widget.decoration ?? InputDecoration(
+            hintText: widget.hintText,
+            border: const OutlineInputBorder(),
+            contentPadding: const EdgeInsets.all(16),
+          ),
+          keyboardType: TextInputType.none,
+          showCursor: true,
+          readOnly: false,
+          enableInteractiveSelection: true,
+        ),
+        if (_showKeyboard)
+          IndicaKeyboard(
+            supportedLanguages: widget.supportedLanguages,
+            textController: _textController,
+            onLanguageChanged: _handleLanguageChanged,
+            onDialogStateChanged: _handleDialogStateChanged,
+            showLanguageSwitcher: widget.showLanguageSwitcher,
+            enableHapticFeedback: widget.enableHapticFeedback,
+            primaryColor: widget.primaryColor,
+            height: widget.keyboardHeight,
+          ),
+      ],
+    );
+  }
+}
+
+/// Main Indica keyboard widget based on MinimalExamKeyboard
+class IndicaKeyboard extends StatefulWidget {
   final List<String> supportedLanguages; // e.g., ['en', 'hi', 'mr']
+  final TextEditingController? textController; // Text controller for input handling
+  final FocusNode? focusNode; // Focus node for keyboard visibility management
+  final Function(bool)? onKeyboardVisibilityChanged; // Callback for keyboard visibility changes
   final Function(String)? onTextInput; // Optional fallback for non-native platforms
   final bool useNativeKeyboard; // Enable/disable native integration
   final Function(bool)? onDialogStateChanged; // Notify parent about dialog state
@@ -26,10 +142,14 @@ class MultilingualKeyboard extends StatefulWidget {
   final Color? primaryColor;
   final bool showLanguageSwitcher;
   final bool enableHapticFeedback;
+  final bool autoManageKeyboardVisibility; // Auto show/hide keyboard based on focus
   
-  const MultilingualKeyboard({
+  const IndicaKeyboard({
     super.key,
     required this.supportedLanguages,
+    this.textController,
+    this.focusNode,
+    this.onKeyboardVisibilityChanged,
     this.onTextInput,
     this.useNativeKeyboard = true,
     this.onDialogStateChanged,
@@ -43,15 +163,25 @@ class MultilingualKeyboard extends StatefulWidget {
     this.primaryColor,
     this.showLanguageSwitcher = true,
     this.enableHapticFeedback = true,
+    this.autoManageKeyboardVisibility = true,
   });
 
   @override
-  State<MultilingualKeyboard> createState() => _MultilingualKeyboardState();
+  State<IndicaKeyboard> createState() => _IndicaKeyboardState();
 }
 
-class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
+class _IndicaKeyboardState extends State<IndicaKeyboard> {
   String _currentLanguage = 'en';
   final Map<String, List<List<String>>> _layouts = {};
+  
+  // Focus and keyboard visibility management
+  late FocusNode _internalFocusNode;
+  bool _keyboardVisible = false;
+  final bool _isDialogOpen = false;
+  
+  // Conjunct consonant formation state
+  bool _conjunctMode = false; // Whether conjunct formation is active
+  String? _pendingConsonant; // The consonant waiting to be joined
   
   // Performance optimizations: Cache frequently accessed values
   late final Map<String, TextStyle> _cachedTextStyles = {};
@@ -83,6 +213,15 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   void initState() {
     super.initState();
     _currentLanguage = widget.initialLanguage;
+    
+    // Initialize focus node (use provided one or create internal)
+    _internalFocusNode = widget.focusNode ?? FocusNode();
+    
+    // Set up focus listener for automatic keyboard visibility management
+    if (widget.autoManageKeyboardVisibility) {
+      _internalFocusNode.addListener(_handleFocusChange);
+    }
+    
     _loadKeyboardLayouts();
     
     // Performance: Pre-warm all caches for zero-latency access
@@ -134,6 +273,195 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
     );
   }
 
+  // Internal text input handling
+  void _handleTextInput(String text) {
+    final controller = widget.textController;
+    if (controller == null) {
+      // Fallback to callback if no controller provided
+      widget.onTextInput?.call(text);
+      return;
+    }
+
+    if (text == '⌫') {
+      // Handle backspace at cursor position
+      final currentText = controller.text;
+      final selection = controller.selection;
+      
+      if (currentText.isNotEmpty && selection.start > 0) {
+        // Delete character before cursor
+        final newText = currentText.replaceRange(
+          selection.start - 1,
+          selection.start,
+          '',
+        );
+        final newOffset = selection.start - 1;
+        
+        controller.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newOffset),
+        );
+      }
+    } else {
+      // Handle regular text input at cursor position
+      final currentText = controller.text;
+      final selection = controller.selection;
+      final newText = currentText.replaceRange(
+        selection.start,
+        selection.end,
+        text,
+      );
+      final newOffset = selection.start + text.length;
+
+      controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newOffset),
+      );
+    }
+  }
+
+  // Focus handling for automatic keyboard visibility
+  void _handleFocusChange() {
+    if (_internalFocusNode.hasFocus) {
+      _setKeyboardVisible(true);
+    } else {
+      // Don't hide keyboard immediately on focus lost
+      // This prevents keyboard from disappearing when dialogs open
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted && !_isDialogOpen && !_internalFocusNode.hasFocus) {
+          _setKeyboardVisible(false);
+        }
+      });
+    }
+  }
+
+  void _setKeyboardVisible(bool visible) {
+    if (_keyboardVisible != visible) {
+      setState(() {
+        _keyboardVisible = visible;
+      });
+      widget.onKeyboardVisibilityChanged?.call(visible);
+    }
+  }
+
+
+
+  @override
+  void dispose() {
+    // Only dispose if we created the focus node internally
+    if (widget.focusNode == null) {
+      _internalFocusNode.dispose();
+    }
+    super.dispose();
+  }
+
+  // Helper method to check if a character is a Devanagari consonant
+  bool _isDevanagariConsonant(String char) {
+    if (char.isEmpty || _currentLanguage == 'en') return false;
+    
+    // Devanagari consonant range (क to ह) 
+    final int charCode = char.runes.first;
+    return charCode >= 0x0915 && charCode <= 0x0939; // क(0x0915) to ह(0x0939)
+  }
+
+  // Helper method to remove inherent vowel (halant formation)
+  String _removeInherentVowel(String consonant) {
+    if (_isDevanagariConsonant(consonant)) {
+      // Add halant (्) to remove inherent vowel
+      return consonant + '\u094D'; // U+094D is the halant character
+    }
+    return consonant;
+  }
+
+  // Handle conjunct formation logic - toggle on/off
+  void _handleConjunctFormation() {
+    if (_currentLanguage == 'en') return; // No conjunct for English
+    
+    // If already in conjunct mode, toggle it off
+    if (_conjunctMode) {
+      setState(() {
+        _conjunctMode = false;
+        _pendingConsonant = null;
+      });
+      return;
+    }
+    
+    // Try to turn conjunct mode on
+    final controller = widget.textController;
+    if (controller == null) return;
+    
+    final text = controller.text;
+    final selection = controller.selection;
+    
+    if (text.isEmpty || selection.start == 0) return;
+    
+    // Get the character just before the cursor
+    final beforeCursor = text.substring(selection.start - 1, selection.start);
+    
+    if (_isDevanagariConsonant(beforeCursor)) {
+      setState(() {
+        _conjunctMode = true;
+        _pendingConsonant = beforeCursor;
+      });
+      
+      // Visual feedback - the button will highlight automatically due to state change
+    }
+  }
+
+  // Process conjunct when next consonant is typed
+  void _processConjunctConsonant(String newConsonant) {
+    if (!_conjunctMode || _pendingConsonant == null) return;
+    
+    final controller = widget.textController;
+    if (controller == null) return;
+    
+    // Replace the pending consonant with first consonant + halant + second consonant
+    final currentText = controller.text;
+    
+    // Find the last position of the pending consonant
+    final lastConsonantIndex = currentText.lastIndexOf(_pendingConsonant!);
+    if (lastConsonantIndex >= 0) {
+      // Form the conjunct: first consonant (with halant) + second consonant
+      // This creates the natural order: first + second
+      final conjunct = _removeInherentVowel(_pendingConsonant!) + newConsonant;
+      
+      // Replace the old consonant with the conjunct
+      final newText = currentText.replaceRange(
+        lastConsonantIndex,
+        lastConsonantIndex + _pendingConsonant!.length,
+        conjunct,
+      );
+      
+      // Update cursor position
+      final newOffset = lastConsonantIndex + conjunct.length;
+      
+      controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newOffset),
+      );
+      
+      // Reset conjunct mode
+      setState(() {
+        _conjunctMode = false;
+        _pendingConsonant = null;
+      });
+      
+      return; // Don't process normal input
+    }
+    
+    // If we couldn't find the consonant, reset conjunct mode
+    _resetConjunctMode();
+  }
+
+  // Reset conjunct mode
+  void _resetConjunctMode() {
+    if (_conjunctMode) {
+      setState(() {
+        _conjunctMode = false;
+        _pendingConsonant = null;
+      });
+    }
+  }
+
   // Get current layout based on language, page, and selected letter
   List<List<String>> _getCurrentLayout() {
     // Use cached layout if available and valid
@@ -180,6 +508,18 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
 
   // CRITICAL PATH: This runs on every key press - OPTIMIZED FOR ZERO LATENCY
   void _onKeyPress(String key) {
+    // Handle conjunct formation for Devanagari consonants
+    if (_conjunctMode && _isDevanagariConsonant(key)) {
+      _processConjunctConsonant(key);
+      widget.onKeyPressed?.call(key);
+      return; // Don't process normal input
+    }
+    
+    // Reset conjunct mode on any other key press
+    if (_conjunctMode) {
+      _resetConjunctMode();
+    }
+    
     // PERFORMANCE: Remove try-catch from critical path
     // Handle three-state capitalization inline for speed
     final shouldUpperCase = _isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase();
@@ -193,7 +533,7 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
     }
     
     // Send text immediately (don't await)
-    widget.onTextInput?.call(finalKey);
+    _handleTextInput(finalKey);
     widget.onKeyPressed?.call(finalKey);
     
     // Update state only if needed
@@ -203,7 +543,7 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
   }
 
   void _onBackspace() {
-    widget.onTextInput?.call('⌫');
+    _handleTextInput('⌫');
   }
 
   void _toggleCase() {
@@ -631,7 +971,13 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
           flex: 2,
           child: _buildKey(',', keyHeight),
         ),
-        
+
+        if (_currentLanguage != 'en')
+        Expanded(
+          flex: 2,
+          child: _buildKey('\u0964', keyHeight), // Spacer for balanced layout
+        ),
+
         // Spacebar with language switching and language indicator
         Expanded(
           flex: 6,
@@ -693,6 +1039,12 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
         Expanded(
           flex: 2,
           child: _buildKey('.', keyHeight),
+        ),
+
+        if (_currentLanguage != 'en')
+        Expanded(
+          flex: 2,
+          child: _buildConjunctKey(keyHeight), // Conjunct formation key
         ),
         
         // Enter key
@@ -851,6 +1203,49 @@ class _MultilingualKeyboardState extends State<MultilingualKeyboard> {
                   fontSize: (keyHeight * 0.35).clamp(10.0, 16.0),
                   color: KeyboardConstants.textOnLight,
                   fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConjunctKey(double keyHeight) {
+    return SizedBox(
+      height: keyHeight,
+      child: Material(
+        color: KeyboardConstants.keyBackground,
+        // _conjunctMode 
+        //     ? _getEffectivePrimaryColor().withValues(alpha: 0.2) // Highlight when active
+        //     : KeyboardConstants.specialKeyDefault,
+        borderRadius: BorderRadius.circular(6),
+        elevation: 1,
+        child: InkWell(
+          onTap: _handleConjunctFormation,
+          borderRadius: BorderRadius.circular(6),
+          splashColor: KeyboardConstants.specialKeySplashWithAlpha,
+          highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: _conjunctMode 
+                    ? _getEffectivePrimaryColor() 
+                    : KeyboardConstants.specialKeyBorder,
+                width: _conjunctMode ? 2 : 1,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                '+',
+                style: TextStyle(
+                  fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
+                  color: _conjunctMode 
+                      ? _getEffectivePrimaryColor() 
+                      : KeyboardConstants.textOnLight,
+                  fontWeight: _conjunctMode ? FontWeight.bold : FontWeight.w500,
                 ),
               ),
             ),
