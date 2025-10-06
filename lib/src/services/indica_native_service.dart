@@ -207,28 +207,124 @@ class IndicaNativeService {
     return _calculateDeleteCountDart(textBeforeCursor);
   }
   
-  /// Get native performance statistics
-  static Future<Map<String, int>> getPerformanceStats() async {
-    if (!_nativeSupported) return {};
+  /// Process multiple texts in batch for improved performance
+  /// This method provides significant performance gains for bulk operations
+  static Future<List<String>> processBatchText({
+    required List<String> texts,
+    required String language,
+  }) async {
+    // Auto-initialize if not done yet
+    if (!_initialized) {
+      await initialize();
+    }
+    
+    // Try native batch processing first (ultra-optimized)
+    if (_nativeSupported) {
+      try {
+        final result = await _channel.invokeMethod('processBatchTextNative', {
+          'texts': texts,
+          'language': language,
+        });
+        _logProcessing('processBatchText', true, '${texts.length} texts');
+        return List<String>.from(result as List? ?? []);
+      } catch (e) {
+        // Fallback to individual processing with logging
+        _logProcessing('processBatchText', false, 'native failed: ${e.toString().substring(0, 50)}...');
+      }
+    } else {
+      _logProcessing('processBatchText', false, 'native not supported');
+    }
+
+    // Dart fallback - process individually
+    final results = <String>[];
+    for (final text in texts) {
+      results.add(await processText(text: text, language: language));
+    }
+    return results;
+  }
+  
+  /// Get comprehensive performance statistics with detailed metrics
+  static Future<Map<String, dynamic>> getAdvancedPerformanceStats() async {
+    if (!_nativeSupported) return getProcessingStats();
     
     try {
       final result = await _channel.invokeMethod('getNativePerformanceStats');
-      return Map<String, int>.from(result as Map? ?? {});
+      final nativeStats = Map<String, dynamic>.from(result as Map? ?? {});
+      
+      // Combine with Dart-side statistics
+      final combinedStats = Map<String, dynamic>.from(getProcessingStats());
+      combinedStats.addAll(nativeStats);
+      
+      return combinedStats;
     } catch (e) {
-      return {};
+      return getProcessingStats();
     }
   }
   
-  /// Clear native caches for memory management
+  /// Optimize native caches for better performance
+  /// Call this periodically to maintain optimal performance
+  static Future<bool> optimizeNativeCaches() async {
+    if (!_nativeSupported) return false;
+    
+    try {
+      await _channel.invokeMethod('optimizeNativeCaches');
+      if (_loggingEnabled) {
+        developer.log(
+          '🔧 Native caches optimized for better performance',
+          name: 'IndicaKeyboard',
+          level: 800,
+        );
+      }
+      return true;
+    } catch (e) {
+      if (_loggingEnabled) {
+        developer.log(
+          '⚠️ Cache optimization failed: $e',
+          name: 'IndicaKeyboard',
+          level: 900,
+        );
+      }
+      return false;
+    }
+  }
+  
+  /// Clear native caches and reset performance counters
   static Future<bool> clearNativeCaches() async {
     if (!_nativeSupported) return false;
     
     try {
-      final result = await _channel.invokeMethod('clearNativeCaches');
-      return result == true;
+      await _channel.invokeMethod('clearNativeCaches');
+      
+      // Reset local counters as well
+      _nativeCallCount = 0;
+      _dartFallbackCount = 0;
+      
+      if (_loggingEnabled) {
+        developer.log(
+          '🧹 Native caches cleared and stats reset',
+          name: 'IndicaKeyboard',
+          level: 800,
+        );
+      }
+      return true;
     } catch (e) {
+      if (_loggingEnabled) {
+        developer.log(
+          '⚠️ Failed to clear native caches: $e',
+          name: 'IndicaKeyboard',
+          level: 900,
+        );
+      }
       return false;
     }
+  }
+  
+  /// Get legacy performance statistics (for backward compatibility)
+  static Future<Map<String, int>> getPerformanceStats() async {
+    return {
+      'nativeCallCount': _nativeCallCount,
+      'dartFallbackCount': _dartFallbackCount,
+    };
   }
   
   // Dart fallback implementations
@@ -282,5 +378,102 @@ class IndicaNativeService {
     if (char.isEmpty) return false;
     final code = char.runes.first;
     return code >= 0x0915 && code <= 0x0939; // क to ह
+  }
+  
+  /// Advanced: Warm up caches with common operations for better initial performance
+  static Future<void> warmUpCaches() async {
+    if (!_nativeSupported) return;
+    
+    try {
+      // Pre-load common conjuncts to improve first-time performance
+      final commonConjuncts = [
+        {'base': 'क', 'consonant': 'त', 'language': 'hi'},
+        {'base': 'श', 'consonant': 'र', 'language': 'hi'}, 
+        {'base': 'त', 'consonant': 'र', 'language': 'hi'},
+        {'base': 'स', 'consonant': 'त', 'language': 'hi'},
+        {'base': 'न', 'consonant': 'न', 'language': 'hi'},
+      ];
+      
+      for (final conjunct in commonConjuncts) {
+        await processConjunct(
+          baseChar: conjunct['base']!,
+          consonant: conjunct['consonant']!,
+          language: conjunct['language']!,
+        );
+      }
+      
+      if (_loggingEnabled) {
+        developer.log(
+          '🔥 Native caches warmed up with common operations',
+          name: 'IndicaKeyboard',
+          level: 800,
+        );
+      }
+    } catch (e) {
+      if (_loggingEnabled) {
+        developer.log(
+          '⚠️ Cache warm-up failed: $e',
+          name: 'IndicaKeyboard',
+          level: 900,
+        );
+      }
+    }
+  }
+  
+  /// Advanced: Get detailed performance insights for optimization
+  static Map<String, String> getPerformanceInsights() {
+    final totalCalls = _nativeCallCount + _dartFallbackCount;
+    
+    if (totalCalls == 0) {
+      return {
+        'status': 'No operations yet',
+        'recommendation': 'Start typing to see performance data',
+        'mode': getProcessingMode(),
+      };
+    }
+    
+    final nativePercentage = (_nativeCallCount / totalCalls * 100);
+    
+    String recommendation;
+    String status;
+    
+    if (!_nativeSupported) {
+      status = 'Dart-only mode';
+      recommendation = 'Native processing unavailable on this platform';
+    } else if (nativePercentage >= 90) {
+      status = 'Excellent performance';
+      recommendation = 'Optimal native processing active';
+    } else if (nativePercentage >= 70) {
+      status = 'Good performance';  
+      recommendation = 'Mostly using native processing';
+    } else if (nativePercentage >= 50) {
+      status = 'Mixed performance';
+      recommendation = 'Consider optimizing or checking for errors';
+    } else {
+      status = 'Poor native performance';
+      recommendation = 'Frequent fallbacks detected - check logs for issues';
+    }
+    
+    return {
+      'status': status,
+      'recommendation': recommendation,
+      'mode': getProcessingMode(),
+      'nativePercentage': '${nativePercentage.toStringAsFixed(1)}%',
+      'totalOperations': totalCalls.toString(),
+    };
+  }
+  
+  /// Advanced: Reset all statistics (useful for benchmarking)
+  static void resetStatistics() {
+    _nativeCallCount = 0;
+    _dartFallbackCount = 0;
+    
+    if (_loggingEnabled) {
+      developer.log(
+        '📊 Performance statistics reset',
+        name: 'IndicaKeyboard',
+        level: 800,
+      );
+    }
   }
 }
