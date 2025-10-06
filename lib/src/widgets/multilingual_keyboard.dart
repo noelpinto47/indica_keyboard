@@ -183,6 +183,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   bool _conjunctMode = false; // Whether conjunct formation is active
   String? _pendingConsonant; // The consonant waiting to be joined
   
+  // Auto-capitalization state (English only)
+  final bool _shouldAutoCapitalize = true; // Start with capital for first letter
+  
   // Performance optimizations: Cache frequently accessed values
   late final Map<String, TextStyle> _cachedTextStyles = {};
   late final Map<String, BoxDecoration> _cachedDecorations = {};
@@ -372,6 +375,40 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     return consonant;
   }
 
+  // Helper method to detect sentence boundaries
+  bool _isSentenceEnd(String text) {
+    if (text.isEmpty) return true; // Start of text
+    
+    // Look for sentence-ending punctuation followed by space or at end
+    final trimmed = text.trimRight();
+    if (trimmed.isEmpty) return true;
+    
+    final lastChar = trimmed[trimmed.length - 1];
+    return lastChar == '.' || lastChar == '!' || lastChar == '?';
+  }
+
+  // Helper method to determine if next character should be capitalized
+  bool _shouldCapitalize() {
+    if (_currentLanguage != 'en' || !_shouldAutoCapitalize) return false;
+    
+    final controller = widget.textController;
+    if (controller == null) return false; // No controller, no capitalization
+    
+    final currentText = controller.text;
+    if (currentText.isEmpty) return true; // Start of text
+    
+    // Check if we're at the beginning of a sentence
+    return _isSentenceEnd(currentText);
+  }
+
+  // Helper method to capitalize a character if needed
+  String _applyCapitalization(String char) {
+    if (_shouldCapitalize() && char.length == 1) {
+      return char.toUpperCase();
+    }
+    return char;
+  }
+
   // Handle conjunct formation logic - toggle on/off
   void _handleConjunctFormation() {
     if (_currentLanguage == 'en') return; // No conjunct for English
@@ -523,7 +560,10 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     // PERFORMANCE: Remove try-catch from critical path
     // Handle three-state capitalization inline for speed
     final shouldUpperCase = _isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase();
-    final finalKey = shouldUpperCase ? key.toUpperCase() : key;
+    final shiftCapitalizedKey = shouldUpperCase ? key.toUpperCase() : key;
+    
+    // Apply auto-capitalization for English keyboard
+    final finalKey = _applyCapitalization(shiftCapitalizedKey);
     
     // PERFORMANCE: Batch state updates to minimize rebuilds
     bool needsStateUpdate = false;
