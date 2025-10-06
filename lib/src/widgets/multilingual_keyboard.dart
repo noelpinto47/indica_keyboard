@@ -185,6 +185,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   
   // Auto-capitalization state (English only)
   final bool _shouldAutoCapitalize = true; // Start with capital for first letter
+  bool _justUsedAutoCapitalization = false; // Track if we just auto-capitalized
   
   // Performance optimizations: Cache frequently accessed values
   late final Map<String, TextStyle> _cachedTextStyles = {};
@@ -223,6 +224,15 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     // Set up focus listener for automatic keyboard visibility management
     if (widget.autoManageKeyboardVisibility) {
       _internalFocusNode.addListener(_handleFocusChange);
+    }
+    
+    // Listen to text changes to update keyboard capitalization display
+    if (widget.textController != null) {
+      widget.textController!.addListener(() {
+        if (mounted && _currentLanguage == 'en' && _shouldAutoCapitalize) {
+          setState(() {}); // Rebuild keyboard to show/hide capitalization
+        }
+      });
     }
     
     _loadKeyboardLayouts();
@@ -391,6 +401,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   bool _shouldCapitalize() {
     if (_currentLanguage != 'en' || !_shouldAutoCapitalize) return false;
     
+    // If we just used auto-capitalization, don't capitalize again until next sentence
+    if (_justUsedAutoCapitalization) return false;
+    
     final controller = widget.textController;
     if (controller == null) return false; // No controller, no capitalization
     
@@ -399,14 +412,6 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     
     // Check if we're at the beginning of a sentence
     return _isSentenceEnd(currentText);
-  }
-
-  // Helper method to capitalize a character if needed
-  String _applyCapitalization(String char) {
-    if (_shouldCapitalize() && char.length == 1) {
-      return char.toUpperCase();
-    }
-    return char;
   }
 
   // Handle conjunct formation logic - toggle on/off
@@ -560,16 +565,35 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     // PERFORMANCE: Remove try-catch from critical path
     // Handle three-state capitalization inline for speed
     final shouldUpperCase = _isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase();
-    final shiftCapitalizedKey = shouldUpperCase ? key.toUpperCase() : key;
-    
-    // Apply auto-capitalization for English keyboard
-    final finalKey = _applyCapitalization(shiftCapitalizedKey);
+    final shouldAutoCapitalize = !_isUpperCase && _shouldCapitalize() && key.length == 1 && key.toLowerCase() != key.toUpperCase();
+    final finalKey = shouldUpperCase ? key.toUpperCase() : (shouldAutoCapitalize ? key.toUpperCase() : key);
     
     // PERFORMANCE: Batch state updates to minimize rebuilds
     bool needsStateUpdate = false;
     if (_shiftState == ShiftState.single && shouldUpperCase) {
       _shiftState = ShiftState.off;
       needsStateUpdate = true;
+    }
+    
+    // Handle auto-capitalization state tracking
+    if (shouldAutoCapitalize) {
+      _justUsedAutoCapitalization = true;
+      needsStateUpdate = true;
+    } else if (key.length == 1) {
+      if (key.toLowerCase() != key.toUpperCase()) {
+        // Reset auto-capitalization flag when typing any letter (not punctuation)
+        if (_justUsedAutoCapitalization) {
+          _justUsedAutoCapitalization = false;
+          needsStateUpdate = true;
+        }
+      } else if (key == '.' || key == '!' || key == '?') {
+        // Reset auto-capitalization flag when typing sentence-ending punctuation
+        // so it can work for the next sentence
+        if (_justUsedAutoCapitalization) {
+          _justUsedAutoCapitalization = false;
+          needsStateUpdate = true;
+        }
+      }
     }
     
     // Send text immediately (don't await)
@@ -656,13 +680,19 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
   /// Helper method to get shift key icon path based on state
   String _getShiftIconPath(ShiftState shiftState) {
+    // Check if auto-capitalization is active (should show as enabled)
+    final isAutoCapActive = _currentLanguage == 'en' && _shouldCapitalize();
+    
     switch (shiftState) {
       case ShiftState.capsLock:
         return 'packages/indica_keyboard/assets/icons/caps-lock-hold.svg'; // Caps lock enabled
       case ShiftState.single:
         return 'packages/indica_keyboard/assets/icons/caps-lock-enabled.svg'; // Single tap - hold state
       case ShiftState.off:
-        return 'packages/indica_keyboard/assets/icons/default-caps-lock-off.svg'; // Default off state
+        // Show as enabled if auto-capitalization is active, otherwise off
+        return isAutoCapActive 
+          ? 'packages/indica_keyboard/assets/icons/caps-lock-enabled.svg'
+          : 'packages/indica_keyboard/assets/icons/default-caps-lock-off.svg';
     }
   }
 
@@ -1103,7 +1133,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   Widget _buildKey(String key, double keyHeight) {
     // PERFORMANCE: Pre-compute case conversion
     final shouldUpperCase = _isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase();
-    final displayKey = shouldUpperCase ? key.toUpperCase() : key;
+    final shouldAutoCapitalize = _shouldCapitalize() && key.length == 1 && key.toLowerCase() != key.toUpperCase();
+    final displayKey = (shouldUpperCase || shouldAutoCapitalize) ? key.toUpperCase() : key;
     
     // PERFORMANCE: Use cached text style if available
     final textStyle = _cachedTextStyles[keyHeight.toString()] ?? TextStyle(
@@ -1205,7 +1236,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                 iconPath,
                 width: _shiftState == ShiftState.capsLock ? 12 : 8,
                 height: _shiftState == ShiftState.capsLock ? 12 : 8,
-                colorFilter: _shiftState == ShiftState.off 
+                colorFilter: (_shiftState == ShiftState.off && !(_currentLanguage == 'en' && _shouldCapitalize()))
                     ? ColorFilter.mode(Colors.black26, BlendMode.srcIn)
                     : null,
               ),
