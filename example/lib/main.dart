@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:indica_keyboard/indica_keyboard.dart';
 
@@ -35,10 +36,20 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
   bool _showKeyboard = false;
   bool _isDialogOpen = false; // Track dialog state
   String _currentLanguage = 'en';
+  
+  // Native integration state
+  bool _isInitializing = true;
+  Timer? _statsUpdateTimer;
 
   @override
   void initState() {
     super.initState();
+    _initializeNativeSupport();
+    
+    // Update stats display every 2 seconds to show real-time usage
+    _statsUpdateTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (mounted) setState(() {}); // Trigger rebuild to refresh stats
+    });
     _focusNode.addListener(() {
       if (_focusNode.hasFocus) {
         setState(() {
@@ -58,8 +69,29 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
     });
   }
 
+  /// Initialize native support (automatic fallback to Dart if not available)
+  Future<void> _initializeNativeSupport() async {
+    try {
+      await IndicaNativeService.initialize();
+      
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+      }
+    } catch (e) {
+      // Silent fallback - user doesn't need to know
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _statsUpdateTimer?.cancel();
     _textController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -100,6 +132,8 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
                     'Current Language: ${_getLanguageName(_currentLanguage)}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  const SizedBox(height: 8),
+                  _buildNativeStatusWidget(),
                   const SizedBox(height: 16),
                   Expanded(
                     child: TextField(
@@ -162,6 +196,86 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
       ),
     );
   }
+
+  /// Build processing mode indicator with detailed statistics
+  Widget _buildNativeStatusWidget() {
+    if (_isInitializing) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 8),
+            Text('Initializing...', style: TextStyle(fontSize: 12)),
+          ],
+        ),
+      );
+    }
+
+    final isNative = IndicaNativeService.isUsingNativeProcessing;
+    final stats = IndicaNativeService.getProcessingStats();
+    
+    final statusColor = isNative ? Colors.green : Colors.blue;
+    final statusText = isNative ? 'Native Processing' : 'Dart Processing';
+    final icon = isNative ? Icons.flash_on : Icons.code;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Main status indicator
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: statusColor),
+                const SizedBox(width: 8),
+                Text(
+                  statusText,
+                  style: TextStyle(fontSize: 14, color: statusColor, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Processing statistics
+            if (stats['totalCalls'] > 0) ...[
+              Text(
+                'Processing Stats:',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text('🚀 Native: ${stats['nativeCallCount']}', style: const TextStyle(fontSize: 11)),
+                  const SizedBox(width: 12),
+                  Text('🔄 Dart: ${stats['dartFallbackCount']}', style: const TextStyle(fontSize: 11)),
+                  const SizedBox(width: 12),
+                  Text('📊 ${stats['nativePercentage']}% native', 
+                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.green[700])),
+                ],
+              ),
+            ] else
+              Text(
+                'No processing calls yet - start typing!',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
 
   String _getLanguageName(String code) {
     switch (code) {

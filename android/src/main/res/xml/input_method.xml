@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:supportsSwitchingToNextInputMethod="true">
+    
+    <!-- English subtype -->
+    <subtype
+        android:imeSubtypeLocale="en_US"
+        android:imeSubtypeMode="keyboard"
+        android:label="English (US)" />
+    
+    <!-- Hindi subtype -->
+    <subtype
+        android:imeSubtypeLocale="hi_IN"
+        android:imeSubtypeMode="keyboard"
+        android:label="हिन्दी (Hindi)" />
+    
+    <!-- Marathi subtype -->
+    <subtype
+        android:imeSubtypeLocale="mr_IN"
+        android:imeSubtypeMode="keyboard"
+        android:label="मराठी (Marathi)" />
+</input-method>

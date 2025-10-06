@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../models/keyboard_layout.dart';
 import '../constants/keyboard_constants.dart';
+import '../services/indica_native_service.dart';
 
 // Enum for three-state shift key behavior
 enum ShiftState {
@@ -52,6 +53,9 @@ class _IndicaKeyboardFieldState extends State<IndicaKeyboardField> {
     super.initState();
     _textController = widget.textController ?? TextEditingController();
     _focusNode = FocusNode();
+    
+    // Initialize native service for automatic high-performance processing
+    IndicaNativeService.initialize();
 
     _focusNode.addListener(() {
       if (_focusNode.hasFocus) {
@@ -218,6 +222,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     super.initState();
     _currentLanguage = widget.initialLanguage;
     
+    // Initialize native service for automatic high-performance processing
+    IndicaNativeService.initialize();
+    
     // Initialize focus node (use provided one or create internal)
     _internalFocusNode = widget.focusNode ?? FocusNode();
     
@@ -376,14 +383,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     return charCode >= 0x0915 && charCode <= 0x0939; // क(0x0915) to ह(0x0939)
   }
 
-  // Helper method to remove inherent vowel (halant formation)
-  String _removeInherentVowel(String consonant) {
-    if (_isDevanagariConsonant(consonant)) {
-      // Add halant (्) to remove inherent vowel
-      return '$consonant\u094D'; // U+094D is the halant character
-    }
-    return consonant;
-  }
+
 
   // Helper method to detect sentence boundaries
   bool _isSentenceEnd(String text) {
@@ -450,7 +450,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   }
 
   // Process conjunct when next consonant is typed
-  void _processConjunctConsonant(String newConsonant) {
+  void _processConjunctConsonant(String newConsonant) async {
     if (!_conjunctMode || _pendingConsonant == null) return;
     
     final controller = widget.textController;
@@ -462,9 +462,12 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     // Find the last position of the pending consonant
     final lastConsonantIndex = currentText.lastIndexOf(_pendingConsonant!);
     if (lastConsonantIndex >= 0) {
-      // Form the conjunct: first consonant (with halant) + second consonant
-      // This creates the natural order: first + second
-      final conjunct = _removeInherentVowel(_pendingConsonant!) + newConsonant;
+      // Form the conjunct using native processing with automatic Dart fallback
+      final conjunct = await IndicaNativeService.processConjunct(
+        baseChar: _pendingConsonant!,
+        consonant: newConsonant,
+        language: _currentLanguage,
+      );
       
       // Replace the old consonant with the conjunct
       final newText = currentText.replaceRange(
