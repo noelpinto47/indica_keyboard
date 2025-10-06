@@ -367,7 +367,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   String _removeInherentVowel(String consonant) {
     if (_isDevanagariConsonant(consonant)) {
       // Add halant (्) to remove inherent vowel
-      return consonant + '\u094D'; // U+094D is the halant character
+      return '$consonant\u094D'; // U+094D is the halant character
     }
     return consonant;
   }

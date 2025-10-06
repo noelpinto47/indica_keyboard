@@ -5,12 +5,14 @@ A comprehensive multilingual keyboard plugin for Flutter that supports English, 
 ## Features
 
 - **Multi-language Support**: English, Hindi (Devanagari), and Marathi (Devanagari)
-- **Smart Text Input**: Intelligent vowel attachments and conjunct consonants for Indic scripts
+- **Conjunct Consonant Formation**: Advanced '+' button for creating complex Devanagari conjuncts
+- **Integrated Focus Management**: Built-in TextField and focus handling - no setup required
+- **Smart Text Input**: Intelligent vowel attachments and cursor-aware text processing
 - **Dynamic Layouts**: Context-sensitive keyboard layouts with multiple pages for complex scripts
 - **Customizable UI**: Theming support with custom colors and styling
 - **Haptic Feedback**: Optional tactile feedback for enhanced user experience
 - **Shift States**: Three-state shift functionality for English (off, single, caps lock)
-- **Easy Integration**: Drop-in widget that can be added to any Flutter app
+- **Ultra-Simple Integration**: Complete keyboard solution in just 3 lines of code
 
 ## Installation
 
@@ -18,7 +20,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  indica_keyboard: ^0.0.1
+  indica_keyboard: ^0.0.2
 ```
 
 ## Basic Usage
@@ -89,14 +91,33 @@ IndicaKeyboard(
 ### Hindi (hi) - हिंदी
 - Devanagari script with 4 layout pages
 - Smart vowel attachments (matraas)
-- Conjunct consonants and ligatures
+- **Conjunct consonants formation** with '+' button (क + त = क्त)
 - Dynamic top row based on selected consonant
 
 ### Marathi (mr) - मराठी
 - Devanagari script with Marathi-specific characters
 - Support for ळ (La) and other Marathi-specific letters
+- **Conjunct consonants formation** with '+' button
 - 4 layout pages with comprehensive character coverage
 - Smart text composition
+
+## Advanced Features
+
+### Conjunct Consonant Formation
+
+For Hindi and Marathi, you can create conjunct consonants using the '+' button:
+
+1. **Type first consonant**: क (ka)
+2. **Press '+' button**: Button highlights, conjunct mode ON
+3. **Type second consonant**: त (ta)  
+4. **Result**: क्त (kta) - conjunct formed automatically
+
+**Examples**:
+- क + [+] + र = क्र (kra) - as in "क्रम"
+- स + [+] + त = स्त (sta) - as in "मस्त"  
+- न + [+] + य = न्य (nya) - as in "पुन्य"
+
+**Toggle Mode**: Press '+' again to turn OFF conjunct mode if activated accidentally.
 
 ## API Reference
 
