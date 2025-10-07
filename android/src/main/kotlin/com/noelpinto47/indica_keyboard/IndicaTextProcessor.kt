@@ -215,4 +215,22 @@ class IndicaTextProcessor {
             "devanagariCacheSize" to devanagariCache.size
         )
     }
+    
+    /**
+     * Main text processing method
+     */
+    fun processText(text: String, language: String): String {
+        return when (language) {
+            "hi", "mr" -> processDevanagariText(text, language)
+            "en" -> processEnglishText(text)
+            else -> text
+        }
+    }
+    
+    /**
+     * Process multiple texts in batch for better performance
+     */
+    fun processBatchText(texts: List<String>, language: String): List<String> {
+        return texts.map { text -> processText(text, language) }
+    }
 }

@@ -76,7 +76,7 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 16),
-              
+
               // Text input field
               Expanded(
                 child: TextField(
@@ -93,9 +93,9 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
                   keyboardType: TextInputType.none, // Disable system keyboard
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Clear button
               Center(
                 child: ElevatedButton(
@@ -108,21 +108,21 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
             ],
           ),
         ),
-        
+
         // Show Indica Keyboard when text field is focused
         bottomSheet: _showKeyboard
             ? IndicaKeyboard(
-                supportedLanguages: const ['en', 'hi', 'mr'],
-                initialLanguage: 'en',
-                textController: _textController,
-                onLanguageChanged: (language) {
-                  setState(() {
-                    _currentLanguage = language;
-                  });
-                },
-                showLanguageSwitcher: true,
-                enableHapticFeedback: true,
-                primaryColor: Colors.red,
+                    supportedLanguages: const ['en', 'hi', 'mr'],
+                    initialLanguage: 'en',
+                    textController: _textController,
+                    onLanguageChanged: (language) {
+                      setState(() {
+                        _currentLanguage = language;
+                      });
+                    },
+                    showLanguageSwitcher: true,
+                    enableHapticFeedback: true,
+                    primaryColor: Colors.red,
               )
             : null,
       ),

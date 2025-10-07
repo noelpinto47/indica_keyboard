@@ -220,23 +220,23 @@ class OptimizedIndicaTextProcessor {
     /**
      * Batch processing for large text sequences
      */
-    fun processBatchText(inputs: List<String>, language: String): List<String> {
-        if (inputs.isEmpty()) return emptyList()
+    fun processBatchText(texts: List<String>, language: String): List<String> {
+        if (texts.isEmpty()) return emptyList()
         
         val startTime = System.nanoTime()
-        val results = ArrayList<String>(inputs.size)
+        val results = ArrayList<String>(texts.size)
         
         // Process in batches for better cache locality
-        for (i in inputs.indices step BATCH_SIZE) {
-            val endIndex = minOf(i + BATCH_SIZE, inputs.size)
-            val batch = inputs.subList(i, endIndex)
+        for (i in texts.indices step BATCH_SIZE) {
+            val endIndex = minOf(i + BATCH_SIZE, texts.size)
+            val batch = texts.subList(i, endIndex)
             
-            for (input in batch) {
-                results.add(processDevanagariText(input, language))
+            for (text in batch) {
+                results.add(processDevanagariText(text, language))
             }
         }
         
-        operationCount.addAndGet(inputs.size.toLong())
+        operationCount.addAndGet(texts.size.toLong())
         recordProcessingTime(startTime)
         return results
     }
@@ -388,4 +388,24 @@ class OptimizedIndicaTextProcessor {
     private fun recordProcessingTime(startTime: Long) {
         processingTimeNs.addAndGet(System.nanoTime() - startTime)
     }
+    
+    // Cache preloading methods for language-specific optimization
+    fun preloadDevanagariCache() {
+        // Preload common Devanagari conjuncts and patterns
+        val commonPatterns = listOf(
+            "क्ष", "त्र", "ज्ञ", "श्र", "द्व", "स्व", "न्द", "न्त",
+            "म्प", "म्भ", "स्त", "स्प", "र्य", "व्य", "श्य", "ल्य"
+        )
+        
+        commonPatterns.forEach { pattern ->
+            conjunctCache.put(pattern, pattern) // Cache the pattern
+        }
+    }
+    
+    fun preloadEnglishCache() {
+        // Preload common English processing patterns if needed
+        // Currently English doesn't require complex caching but this method
+        // exists for API compatibility
+    }
+    
 }
