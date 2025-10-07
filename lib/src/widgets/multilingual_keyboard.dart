@@ -516,18 +516,30 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     if (_currentLanguage == 'en') {
       // Handle shift key for English
       final now = DateTime.now();
+      final isAutoCapActive = _shouldCapitalize();
+      
       if (_lastShiftTap != null &&
           now.difference(_lastShiftTap!) < doubleTapThreshold) {
         // Double tap: activate caps lock
         setState(() {
           _shiftState = ShiftState.capsLock;
+          // When user manually activates caps lock, disable auto-capitalization
+          if (isAutoCapActive) {
+            _justUsedAutoCapitalization = true;
+          }
         });
       } else {
-        // Single tap: cycle through states
+        // Single tap: cycle through states with auto-capitalization awareness
         setState(() {
           switch (_shiftState) {
             case ShiftState.off:
-              _shiftState = ShiftState.single;
+              // If auto-capitalization is active and user clicks the "active" shift key,
+              // they expect to turn off capitalization, so disable auto-cap and keep shift off
+              if (isAutoCapActive) {
+                _justUsedAutoCapitalization = true; // Disable auto-cap for this context
+              } else {
+                _shiftState = ShiftState.single;
+              }
               break;
             case ShiftState.single:
             case ShiftState.capsLock:
