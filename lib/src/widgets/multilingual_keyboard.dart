@@ -6,20 +6,24 @@ import '../services/indica_native_service.dart';
 
 // Enum for three-state shift key behavior
 enum ShiftState {
-  off,        // lowercase
-  single,     // capitalize next letter only
-  capsLock,   // all letters capitalized
+  off, // lowercase
+  single, // capitalize next letter only
+  capsLock, // all letters capitalized
 }
 
 /// Main Indica keyboard widget based on MinimalExamKeyboard
 class IndicaKeyboard extends StatefulWidget {
   final List<String> supportedLanguages; // e.g., ['en', 'hi', 'mr']
-  final TextEditingController? textController; // Text controller for input handling
+  final TextEditingController?
+  textController; // Text controller for input handling
   final FocusNode? focusNode; // Focus node for keyboard visibility management
-  final Function(bool)? onKeyboardVisibilityChanged; // Callback for keyboard visibility changes
-  final Function(String)? onTextInput; // Optional fallback for non-native platforms
+  final Function(bool)?
+  onKeyboardVisibilityChanged; // Callback for keyboard visibility changes
+  final Function(String)?
+  onTextInput; // Optional fallback for non-native platforms
   final bool useNativeKeyboard; // Enable/disable native integration
-  final Function(bool)? onDialogStateChanged; // Notify parent about dialog state
+  final Function(bool)?
+  onDialogStateChanged; // Notify parent about dialog state
   final String initialLanguage;
   final Function(String)? onLanguageChanged;
   final Function(String)? onKeyPressed;
@@ -30,8 +34,9 @@ class IndicaKeyboard extends StatefulWidget {
   final Color? primaryColor;
   final bool showLanguageSwitcher;
   final bool enableHapticFeedback;
-  final bool autoManageKeyboardVisibility; // Auto show/hide keyboard based on focus
-  
+  final bool
+  autoManageKeyboardVisibility; // Auto show/hide keyboard based on focus
+
   const IndicaKeyboard({
     super.key,
     required this.supportedLanguages,
@@ -61,62 +66,67 @@ class IndicaKeyboard extends StatefulWidget {
 class _IndicaKeyboardState extends State<IndicaKeyboard> {
   String _currentLanguage = 'en';
   final Map<String, List<List<String>>> _layouts = {};
-  
+
   // Focus and keyboard visibility management
   late FocusNode _internalFocusNode;
   bool _keyboardVisible = false;
   final bool _isDialogOpen = false;
-  
+
   // Conjunct consonant formation state
   bool _conjunctMode = false; // Whether conjunct formation is active
   String? _pendingConsonant; // The consonant waiting to be joined
-  
+
   // Auto-capitalization state (English only)
-  final bool _shouldAutoCapitalize = true; // Start with capital for first letter
+  final bool _shouldAutoCapitalize =
+      true; // Start with capital for first letter
   bool _justUsedAutoCapitalization = false; // Track if we just auto-capitalized
-  
+
   // Performance optimizations: Cache frequently accessed values
   late final Map<String, TextStyle> _cachedTextStyles = {};
   late final Map<String, BoxDecoration> _cachedDecorations = {};
   List<List<String>>? _cachedCurrentLayout;
   bool _layoutCacheInvalid = true;
-  
+
   // Layout page management for non-English keyboards
   int _currentLayoutPage = 0;
-  final Map<String, int> _maxLayoutPages = {'hi': 4, 'mr': 4}; // Hindi and Marathi have 4 pages
-  
+  final Map<String, int> _maxLayoutPages = {
+    'hi': 4,
+    'mr': 4,
+  }; // Hindi and Marathi have 4 pages
+
   // Selected letter for dynamic top row (vowel attachments)
   String? _selectedLetter;
-  
+
   // Three-state shift key management (only for English)
   ShiftState _shiftState = ShiftState.off;
-  bool get _isUpperCase => _shiftState != ShiftState.off && _currentLanguage == 'en';
-  
+  bool get _isUpperCase =>
+      _shiftState != ShiftState.off && _currentLanguage == 'en';
+
   bool _showNumericKeyboard = false;
-  
+
   // Double tap detection for caps lock
   DateTime? _lastShiftTap;
   static const doubleTapThreshold = Duration(milliseconds: 300);
-  
+
   // Performance: Pre-computed constants
   static const _keyBorderRadius = BorderRadius.all(Radius.circular(6));
-  
+
   @override
   void initState() {
     super.initState();
     _currentLanguage = widget.initialLanguage;
-    
+
     // Initialize native service for automatic high-performance processing
     IndicaNativeService.initialize();
-    
+
     // Initialize focus node (use provided one or create internal)
     _internalFocusNode = widget.focusNode ?? FocusNode();
-    
+
     // Set up focus listener for automatic keyboard visibility management
     if (widget.autoManageKeyboardVisibility) {
       _internalFocusNode.addListener(_handleFocusChange);
     }
-    
+
     // Listen to text changes to update keyboard capitalization display
     if (widget.textController != null) {
       widget.textController!.addListener(() {
@@ -125,19 +135,19 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         }
       });
     }
-    
+
     _loadKeyboardLayouts();
-    
+
     // Performance: Pre-warm all caches for zero-latency access
     KeyboardLayout.preWarmAllCaches();
   }
-  
+
   void _loadKeyboardLayouts() {
     // Pre-load ALL language layouts into memory for all pages
     // No dynamic loading during typing = consistent performance
     for (final lang in widget.supportedLanguages) {
       _layouts[lang] = KeyboardLayout.getLayoutForLanguage(lang, page: 0);
-      
+
       // Pre-load all pages for non-English languages
       if (lang != 'en') {
         final maxPages = _maxLayoutPages[lang] ?? 1;
@@ -146,14 +156,14 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         }
       }
     }
-    
+
     // Pre-load numeric layout
     KeyboardLayout.getNumericLayout();
-    
+
     // Pre-compute text styles for different key heights
     _precomputeStyles();
   }
-  
+
   void _precomputeStyles() {
     // Pre-compute common text styles to avoid repeated calculations
     for (double height in [30.0, 35.0, 40.0, 45.0, 50.0]) {
@@ -164,13 +174,13 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         color: widget.textColor ?? KeyboardConstants.keyText,
       );
     }
-    
+
     // Pre-compute decorations
     _cachedDecorations['key'] = BoxDecoration(
       borderRadius: _keyBorderRadius,
       border: Border.all(color: KeyboardConstants.keyBorder, width: 1),
     );
-    
+
     _cachedDecorations['special'] = BoxDecoration(
       borderRadius: _keyBorderRadius,
       border: Border.all(color: KeyboardConstants.specialKeyBorder, width: 1),
@@ -190,7 +200,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       // Handle backspace at cursor position
       final currentText = controller.text;
       final selection = controller.selection;
-      
+
       if (currentText.isNotEmpty && selection.start > 0) {
         // Delete character before cursor
         final newText = currentText.replaceRange(
@@ -199,7 +209,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
           '',
         );
         final newOffset = selection.start - 1;
-        
+
         controller.value = TextEditingValue(
           text: newText,
           selection: TextSelection.collapsed(offset: newOffset),
@@ -247,8 +257,6 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     }
   }
 
-
-
   @override
   void dispose() {
     // Only dispose if we created the focus node internally
@@ -261,22 +269,20 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   // Helper method to check if a character is a Devanagari consonant
   bool _isDevanagariConsonant(String char) {
     if (char.isEmpty || _currentLanguage == 'en') return false;
-    
-    // Devanagari consonant range (क to ह) 
+
+    // Devanagari consonant range (क to ह)
     final int charCode = char.runes.first;
     return charCode >= 0x0915 && charCode <= 0x0939; // क(0x0915) to ह(0x0939)
   }
 
-
-
   // Helper method to detect sentence boundaries
   bool _isSentenceEnd(String text) {
     if (text.isEmpty) return true; // Start of text
-    
+
     // Look for sentence-ending punctuation followed by space or at end
     final trimmed = text.trimRight();
     if (trimmed.isEmpty) return true;
-    
+
     final lastChar = trimmed[trimmed.length - 1];
     return lastChar == '.' || lastChar == '!' || lastChar == '?';
   }
@@ -284,16 +290,16 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   // Helper method to determine if next character should be capitalized
   bool _shouldCapitalize() {
     if (_currentLanguage != 'en' || !_shouldAutoCapitalize) return false;
-    
+
     // If we just used auto-capitalization, don't capitalize again until next sentence
     if (_justUsedAutoCapitalization) return false;
-    
+
     final controller = widget.textController;
     if (controller == null) return false; // No controller, no capitalization
-    
+
     final currentText = controller.text;
     if (currentText.isEmpty) return true; // Start of text
-    
+
     // Check if we're at the beginning of a sentence
     return _isSentenceEnd(currentText);
   }
@@ -301,7 +307,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   // Handle conjunct formation logic - toggle on/off
   void _handleConjunctFormation() {
     if (_currentLanguage == 'en') return; // No conjunct for English
-    
+
     // If already in conjunct mode, toggle it off
     if (_conjunctMode) {
       setState(() {
@@ -310,25 +316,25 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       });
       return;
     }
-    
+
     // Try to turn conjunct mode on
     final controller = widget.textController;
     if (controller == null) return;
-    
+
     final text = controller.text;
     final selection = controller.selection;
-    
+
     if (text.isEmpty || selection.start == 0) return;
-    
+
     // Get the character just before the cursor
     final beforeCursor = text.substring(selection.start - 1, selection.start);
-    
+
     if (_isDevanagariConsonant(beforeCursor)) {
       setState(() {
         _conjunctMode = true;
         _pendingConsonant = beforeCursor;
       });
-      
+
       // Visual feedback - the button will highlight automatically due to state change
     }
   }
@@ -336,13 +342,13 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   // Process conjunct when next consonant is typed
   void _processConjunctConsonant(String newConsonant) async {
     if (!_conjunctMode || _pendingConsonant == null) return;
-    
+
     final controller = widget.textController;
     if (controller == null) return;
-    
+
     // Replace the pending consonant with first consonant + halant + second consonant
     final currentText = controller.text;
-    
+
     // Find the last position of the pending consonant
     final lastConsonantIndex = currentText.lastIndexOf(_pendingConsonant!);
     if (lastConsonantIndex >= 0) {
@@ -352,31 +358,31 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         consonant: newConsonant,
         language: _currentLanguage,
       );
-      
+
       // Replace the old consonant with the conjunct
       final newText = currentText.replaceRange(
         lastConsonantIndex,
         lastConsonantIndex + _pendingConsonant!.length,
         conjunct,
       );
-      
+
       // Update cursor position
       final newOffset = lastConsonantIndex + conjunct.length;
-      
+
       controller.value = TextEditingValue(
         text: newText,
         selection: TextSelection.collapsed(offset: newOffset),
       );
-      
+
       // Reset conjunct mode
       setState(() {
         _conjunctMode = false;
         _pendingConsonant = null;
       });
-      
+
       return; // Don't process normal input
     }
-    
+
     // If we couldn't find the consonant, reset conjunct mode
     _resetConjunctMode();
   }
@@ -397,29 +403,29 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     if (!_layoutCacheInvalid && _cachedCurrentLayout != null) {
       return _cachedCurrentLayout!;
     }
-    
+
     List<List<String>> layout;
     if (_showNumericKeyboard) {
       layout = KeyboardLayout.getNumericLayout();
     } else {
       layout = KeyboardLayout.getLayoutForLanguage(
-        _currentLanguage, 
+        _currentLanguage,
         page: _currentLayoutPage,
         selectedLetter: _selectedLetter,
       );
     }
-    
+
     // Cache the layout
     _cachedCurrentLayout = layout;
     _layoutCacheInvalid = false;
-    
+
     return layout;
   }
 
   // Switch to next layout page (for non-English keyboards)
   void _switchLayoutPage() {
     if (_currentLanguage == 'en') return; // English doesn't have layout pages
-    
+
     final maxPages = _maxLayoutPages[_currentLanguage] ?? 1;
     setState(() {
       _currentLayoutPage = (_currentLayoutPage + 1) % maxPages;
@@ -443,25 +449,34 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       widget.onKeyPressed?.call(key);
       return; // Don't process normal input
     }
-    
+
     // Reset conjunct mode on any other key press
     if (_conjunctMode) {
       _resetConjunctMode();
     }
-    
+
     // PERFORMANCE: Remove try-catch from critical path
     // Handle three-state capitalization inline for speed
-    final shouldUpperCase = _isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase();
-    final shouldAutoCapitalize = !_isUpperCase && _shouldCapitalize() && key.length == 1 && key.toLowerCase() != key.toUpperCase();
-    final finalKey = shouldUpperCase ? key.toUpperCase() : (shouldAutoCapitalize ? key.toUpperCase() : key);
-    
+    final shouldUpperCase =
+        _isUpperCase &&
+        key.length == 1 &&
+        key.toLowerCase() != key.toUpperCase();
+    final shouldAutoCapitalize =
+        !_isUpperCase &&
+        _shouldCapitalize() &&
+        key.length == 1 &&
+        key.toLowerCase() != key.toUpperCase();
+    final finalKey = shouldUpperCase
+        ? key.toUpperCase()
+        : (shouldAutoCapitalize ? key.toUpperCase() : key);
+
     // PERFORMANCE: Batch state updates to minimize rebuilds
     bool needsStateUpdate = false;
     if (_shiftState == ShiftState.single && shouldUpperCase) {
       _shiftState = ShiftState.off;
       needsStateUpdate = true;
     }
-    
+
     // Handle auto-capitalization state tracking
     if (shouldAutoCapitalize) {
       _justUsedAutoCapitalization = true;
@@ -482,11 +497,11 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         }
       }
     }
-    
+
     // Send text immediately (don't await)
     _handleTextInput(finalKey);
     widget.onKeyPressed?.call(finalKey);
-    
+
     // Update state only if needed
     if (needsStateUpdate) {
       setState(() {});
@@ -501,7 +516,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     if (_currentLanguage == 'en') {
       // Handle shift key for English
       final now = DateTime.now();
-      if (_lastShiftTap != null && now.difference(_lastShiftTap!) < doubleTapThreshold) {
+      if (_lastShiftTap != null &&
+          now.difference(_lastShiftTap!) < doubleTapThreshold) {
         // Double tap: activate caps lock
         setState(() {
           _shiftState = ShiftState.capsLock;
@@ -540,7 +556,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   }
 
   void _switchLanguage(String language) {
-    if (mounted && language != _currentLanguage) { // Avoid unnecessary updates
+    if (mounted && language != _currentLanguage) {
+      // Avoid unnecessary updates
       setState(() {
         _currentLanguage = language;
         _currentLayoutPage = 0; // Reset to first page when switching languages
@@ -569,7 +586,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   String _getShiftIconPath(ShiftState shiftState) {
     // Check if auto-capitalization is active (should show as enabled)
     final isAutoCapActive = _currentLanguage == 'en' && _shouldCapitalize();
-    
+
     switch (shiftState) {
       case ShiftState.capsLock:
         return 'packages/indica_keyboard/assets/icons/caps-lock-hold.svg'; // Caps lock enabled
@@ -577,9 +594,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         return 'packages/indica_keyboard/assets/icons/caps-lock-enabled.svg'; // Single tap - hold state
       case ShiftState.off:
         // Show as enabled if auto-capitalization is active, otherwise off
-        return isAutoCapActive 
-          ? 'packages/indica_keyboard/assets/icons/caps-lock-enabled.svg'
-          : 'packages/indica_keyboard/assets/icons/default-caps-lock-off.svg';
+        return isAutoCapActive
+            ? 'packages/indica_keyboard/assets/icons/caps-lock-enabled.svg'
+            : 'packages/indica_keyboard/assets/icons/default-caps-lock-off.svg';
     }
   }
 
@@ -590,13 +607,14 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
   /// Helper method to get the effective primary light color
   Color _getEffectivePrimaryLightColor() {
-    return widget.primaryColor?.withValues(alpha: 0.1) ?? KeyboardConstants.primaryLight;
+    return widget.primaryColor?.withValues(alpha: 0.1) ??
+        KeyboardConstants.primaryLight;
   }
 
   void _showLanguageModal() async {
     // Notify parent that dialog is opening
     widget.onDialogStateChanged?.call(true);
-    
+
     await showDialog(
       context: context,
       barrierDismissible: true,
@@ -626,7 +644,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Language options
                   ...widget.supportedLanguages.map((lang) {
                     final isSelected = _currentLanguage == lang;
@@ -646,13 +664,13 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                               horizontal: 20,
                             ),
                             decoration: BoxDecoration(
-                              color: isSelected 
-                                  ? _getEffectivePrimaryLightColor() 
+                              color: isSelected
+                                  ? _getEffectivePrimaryLightColor()
                                   : KeyboardConstants.transparent,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isSelected 
-                                    ? _getEffectivePrimaryColor() 
+                                color: isSelected
+                                    ? _getEffectivePrimaryColor()
                                     : KeyboardConstants.borderLight,
                                 width: 1,
                               ),
@@ -664,11 +682,11 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                                     KeyboardLayout.getLanguageName(lang),
                                     style: TextStyle(
                                       fontSize: 16,
-                                      fontWeight: isSelected 
-                                          ? FontWeight.w600 
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
                                           : FontWeight.normal,
-                                      color: isSelected 
-                                          ? _getEffectivePrimaryColor() 
+                                      color: isSelected
+                                          ? _getEffectivePrimaryColor()
                                           : KeyboardConstants.textPrimary,
                                     ),
                                   ),
@@ -693,61 +711,35 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         );
       },
     );
-    
+
     // Notify parent that dialog is closed
     widget.onDialogStateChanged?.call(false);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final isLandscape = screenSize.width > screenSize.height;
-    
-    // Responsive keyboard height management
-    final maxKeyboardHeight = isLandscape 
-        ? screenSize.height * 0.4  // 40% max in landscape
-        : screenSize.height * 0.5; // 50% max in portrait
-    
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: widget.height ?? maxKeyboardHeight,
-        minHeight: 0,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: widget.backgroundColor ?? KeyboardConstants.keyboardBackground,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-        ),
-        child: _buildAdaptiveKeyboardLayout(widget.height ?? maxKeyboardHeight),
-      ),
-    );
-  }
-
-  Widget _buildAdaptiveKeyboardLayout(double availableHeight) {
-    return _showNumericKeyboard 
-        ? _buildAdaptiveNumericKeyboardLayout(availableHeight)
-        : _buildAdaptiveAlphaKeyboardLayout(availableHeight);
-  }
-
   Widget _buildAdaptiveAlphaKeyboardLayout(double availableHeight) {
     final layout = _getCurrentLayout();
-    
+
     // Calculate adaptive key height dynamically
     const double padding = 8.0; // Total padding from container
-    final int layoutRows = layout.length; // Dynamic based on layout array length
+    final int layoutRows =
+        layout.length; // Dynamic based on layout array length
     final int totalRows = layoutRows + 1; // Layout rows + 1 unified bottom row
-    
+
     // Set natural key heights based on screen orientation
     const double preferredKeyHeight = 45.0; // Comfortable key size
     const double minKeyHeight = 30.0; // Minimum usability
     const double maxKeyHeight = 50.0; // Maximum comfort
-    
+
     // Calculate if we need to compress keys to fit in available space
-    final double naturalKeyboardHeight = (preferredKeyHeight * totalRows) + padding;
+    final double naturalKeyboardHeight =
+        (preferredKeyHeight * totalRows) + padding;
     final double adaptiveKeyHeight = naturalKeyboardHeight <= availableHeight
         ? preferredKeyHeight // Use natural size if it fits
-        : ((availableHeight - padding) / totalRows).clamp(minKeyHeight, maxKeyHeight); // Compress if needed
-    
+        : ((availableHeight - padding) / totalRows).clamp(
+            minKeyHeight,
+            maxKeyHeight,
+          ); // Compress if needed
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -756,49 +748,46 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
           final int index = entry.key;
           final List<String> row = entry.value;
           final bool isLastRow = index == layout.length - 1;
-          
+
           return Flexible(
             child: isLastRow
                 // Last row uses buildBottomRow for shift and backspace functionality
-                ? _buildBottomRow(
-                    row, 
-                    adaptiveKeyHeight,
-                  )
+                ? _buildBottomRow(row, adaptiveKeyHeight)
                 // All other rows use regular buildKeyRow
-                : _buildKeyRow(
-                    row, 
-                    adaptiveKeyHeight,
-                  ),
+                : _buildKeyRow(row, adaptiveKeyHeight),
           );
         }),
-        
+
         // Unified bottom row (spacebar, etc.)
-        Flexible(
-          child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight),
-        ),
+        Flexible(child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight)),
       ],
     );
   }
 
   Widget _buildAdaptiveNumericKeyboardLayout(double availableHeight) {
     final layout = KeyboardLayout.getNumericLayout();
-    
+
     // Calculate adaptive key height for numeric layout dynamically
     const double padding = 8.0; // Total padding from container
-    final int layoutRows = layout.length; // Dynamic based on layout array length
+    final int layoutRows =
+        layout.length; // Dynamic based on layout array length
     final int totalRows = layoutRows + 1; // Layout rows + 1 unified bottom row
-    
+
     // Set natural key heights based on screen orientation
     const double preferredKeyHeight = 45.0; // Comfortable key size
     const double minKeyHeight = 30.0; // Minimum usability
     const double maxKeyHeight = 50.0; // Maximum comfort
-    
+
     // Calculate if we need to compress keys to fit in available space
-    final double naturalKeyboardHeight = (preferredKeyHeight * totalRows) + padding;
+    final double naturalKeyboardHeight =
+        (preferredKeyHeight * totalRows) + padding;
     final double adaptiveKeyHeight = naturalKeyboardHeight <= availableHeight
         ? preferredKeyHeight // Use natural size if it fits
-        : ((availableHeight - padding) / totalRows).clamp(minKeyHeight, maxKeyHeight); // Compress if needed
-    
+        : ((availableHeight - padding) / totalRows).clamp(
+            minKeyHeight,
+            maxKeyHeight,
+          ); // Compress if needed
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -807,26 +796,18 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
           final int index = entry.key;
           final List<String> row = entry.value;
           final bool isLastRow = index == layout.length - 1;
-          
+
           return Flexible(
             child: isLastRow
                 // Last row uses buildNumericBottomRow for special handling
-                ? _buildNumericBottomRow(
-                    row, 
-                    adaptiveKeyHeight,
-                  )
+                ? _buildNumericBottomRow(row, adaptiveKeyHeight)
                 // All other rows use regular buildKeyRow
-                : _buildKeyRow(
-                    row, 
-                    adaptiveKeyHeight,
-                  ),
+                : _buildKeyRow(row, adaptiveKeyHeight),
           );
         }),
-    
+
         // Unified bottom row (spacebar, etc.)
-        Flexible(
-          child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight),
-        ),
+        Flexible(child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight)),
       ],
     );
   }
@@ -834,9 +815,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   Widget _buildKeyRow(List<String> keys, double keyHeight) {
     return Row(
       children: keys.map((key) {
-        return Expanded(
-          child: _buildKey(key, keyHeight),
-        );
+        return Expanded(child: _buildKey(key, keyHeight));
       }).toList(),
     );
   }
@@ -846,18 +825,16 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       children: [
         // Shift key for English, Layout switcher for other languages
         Expanded(
-          child: (_currentLanguage == 'en') 
-            ? _buildShiftKey(keyHeight)
-            : _buildLayoutSwitcherKey(keyHeight),
+          child: (_currentLanguage == 'en')
+              ? _buildShiftKey(keyHeight)
+              : _buildLayoutSwitcherKey(keyHeight),
         ),
-        
+
         // Letter keys
         ...keys.map((key) {
-          return Expanded(
-            child: _buildKey(key, keyHeight),
-          );
+          return Expanded(child: _buildKey(key, keyHeight));
         }),
-        
+
         // Backspace key
         Expanded(
           flex: 1,
@@ -889,14 +866,12 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
             keyHeight: keyHeight,
           ),
         ),
-        
+
         // Regular symbol keys
         ...keys.skip(1).map((key) {
-          return Expanded(
-            child: _buildKey(key, keyHeight),
-          );
+          return Expanded(child: _buildKey(key, keyHeight));
         }),
-        
+
         // Backspace key
         Expanded(
           flex: 1,
@@ -922,18 +897,15 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
             keyHeight: keyHeight,
           ),
         ),
-        
+
         // Comma key
-        Expanded(
-          flex: 2,
-          child: _buildKey(',', keyHeight),
-        ),
+        Expanded(flex: 2, child: _buildKey(',', keyHeight)),
 
         if (_currentLanguage != 'en')
-        Expanded(
-          flex: 2,
-          child: _buildKey('\u0964', keyHeight), // Spacer for balanced layout
-        ),
+          Expanded(
+            flex: 2,
+            child: _buildKey('\u0964', keyHeight), // Spacer for balanced layout
+          ),
 
         // Spacebar with language switching and language indicator
         Expanded(
@@ -944,7 +916,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
             elevation: 1,
             child: InkWell(
               onTap: () => _onKeyPress(' '),
-              onLongPress: widget.showLanguageSwitcher ? _toggleLanguageSelector : null,
+              onLongPress: widget.showLanguageSwitcher
+                  ? _toggleLanguageSelector
+                  : null,
               borderRadius: BorderRadius.circular(6),
               splashColor: KeyboardConstants.keySplashWithAlpha,
               highlightColor: KeyboardConstants.keyHighlightWithAlpha,
@@ -953,7 +927,10 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                 padding: const EdgeInsets.symmetric(horizontal: 12.0),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: KeyboardConstants.keyBorder, width: 1),
+                  border: Border.all(
+                    color: KeyboardConstants.keyBorder,
+                    width: 1,
+                  ),
                 ),
                 child: Stack(
                   children: [
@@ -991,19 +968,16 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
             ),
           ),
         ),
-        
+
         // Period key
-        Expanded(
-          flex: 2,
-          child: _buildKey('.', keyHeight),
-        ),
+        Expanded(flex: 2, child: _buildKey('.', keyHeight)),
 
         if (_currentLanguage != 'en')
-        Expanded(
-          flex: 2,
-          child: _buildConjunctKey(keyHeight), // Conjunct formation key
-        ),
-        
+          Expanded(
+            flex: 2,
+            child: _buildConjunctKey(keyHeight), // Conjunct formation key
+          ),
+
         // Enter key
         Expanded(
           flex: 2,
@@ -1019,44 +993,60 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
   Widget _buildKey(String key, double keyHeight) {
     // PERFORMANCE: Pre-compute case conversion
-    final shouldUpperCase = _isUpperCase && key.length == 1 && key.toLowerCase() != key.toUpperCase();
-    final shouldAutoCapitalize = _shouldCapitalize() && key.length == 1 && key.toLowerCase() != key.toUpperCase();
-    final displayKey = (shouldUpperCase || shouldAutoCapitalize) ? key.toUpperCase() : key;
-    
+    final shouldUpperCase =
+        _isUpperCase &&
+        key.length == 1 &&
+        key.toLowerCase() != key.toUpperCase();
+    final shouldAutoCapitalize =
+        _shouldCapitalize() &&
+        key.length == 1 &&
+        key.toLowerCase() != key.toUpperCase();
+    final displayKey = (shouldUpperCase || shouldAutoCapitalize)
+        ? key.toUpperCase()
+        : key;
+
     // PERFORMANCE: Use cached text style if available
-    final textStyle = _cachedTextStyles[keyHeight.toString()] ?? TextStyle(
-      fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
-      fontWeight: FontWeight.normal,
-      color: widget.textColor ?? KeyboardConstants.keyText,
-    );
-    
-    return RepaintBoundary( // PERFORMANCE: Prevent unnecessary repaints
+    final textStyle =
+        _cachedTextStyles[keyHeight.toString()] ??
+        TextStyle(
+          fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
+          fontWeight: FontWeight.normal,
+          color: widget.textColor ?? KeyboardConstants.keyText,
+        );
+
+    return RepaintBoundary(
+      // PERFORMANCE: Prevent unnecessary repaints
       child: SizedBox(
-      height: keyHeight,
-      child: Material(
-        color: widget.keyColor ?? KeyboardConstants.keyBackground,
-        borderRadius: _keyBorderRadius, // Use pre-computed constant
-        elevation: 1,
-        child: InkWell(
-          onTap: () => _onKeyPress(displayKey),
+        height: keyHeight,
+        child: Material(
+          color: widget.keyColor ?? KeyboardConstants.keyBackground,
           borderRadius: _keyBorderRadius, // Use pre-computed constant
-          splashColor: KeyboardConstants.keySplashWithAlpha,
-          highlightColor: KeyboardConstants.keyHighlightWithAlpha,
-          child: Container(
-            decoration: _cachedDecorations['key'], // Use cached decoration
-            child: Center(
-              child: Text(
-                displayKey,
-                style: textStyle, // Use cached/pre-computed style
+          elevation: 1,
+          child: InkWell(
+            onTap: () => _onKeyPress(displayKey),
+            borderRadius: _keyBorderRadius, // Use pre-computed constant
+            splashColor: KeyboardConstants.keySplashWithAlpha,
+            highlightColor: KeyboardConstants.keyHighlightWithAlpha,
+            child: Container(
+              decoration: _cachedDecorations['key'], // Use cached decoration
+              child: Center(
+                child: Text(
+                  displayKey,
+                  style: textStyle, // Use cached/pre-computed style
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),); // RepaintBoundary
+    ); // RepaintBoundary
   }
 
-  Widget _buildSpecialKey(String label, {VoidCallback? onTap, double? keyHeight}) {
+  Widget _buildSpecialKey(
+    String label, {
+    VoidCallback? onTap,
+    double? keyHeight,
+  }) {
     return SizedBox(
       height: keyHeight,
       child: Material(
@@ -1073,8 +1063,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: KeyboardConstants.specialKeyBorder, 
-                width: 1
+                color: KeyboardConstants.specialKeyBorder,
+                width: 1,
               ),
             ),
             child: Center(
@@ -1082,7 +1072,11 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: (keyHeight != null ? (keyHeight * 0.35).toDouble() : 16.0).clamp(10.0, 16.0),
+                    fontSize:
+                        (keyHeight != null
+                                ? (keyHeight * 0.35).toDouble()
+                                : 16.0)
+                            .clamp(10.0, 16.0),
                     color: KeyboardConstants.textOnLight,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1098,7 +1092,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
   Widget _buildShiftKey(double keyHeight) {
     final iconPath = _getShiftIconPath(_shiftState);
-    
+
     return SizedBox(
       height: keyHeight,
       child: Material(
@@ -1114,8 +1108,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: KeyboardConstants.specialKeyBorder, 
-                width: 1
+                color: KeyboardConstants.specialKeyBorder,
+                width: 1,
               ),
             ),
             child: Center(
@@ -1123,7 +1117,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                 iconPath,
                 width: _shiftState == ShiftState.capsLock ? 12 : 8,
                 height: _shiftState == ShiftState.capsLock ? 12 : 8,
-                colorFilter: (_shiftState == ShiftState.off && !(_currentLanguage == 'en' && _shouldCapitalize()))
+                colorFilter:
+                    (_shiftState == ShiftState.off &&
+                        !(_currentLanguage == 'en' && _shouldCapitalize()))
                     ? ColorFilter.mode(Colors.black26, BlendMode.srcIn)
                     : null,
               ),
@@ -1150,8 +1146,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: KeyboardConstants.specialKeyBorder, 
-                width: 1
+                color: KeyboardConstants.specialKeyBorder,
+                width: 1,
               ),
             ),
             child: Center(
@@ -1175,7 +1171,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       height: keyHeight,
       child: Material(
         color: KeyboardConstants.keyBackground,
-        // _conjunctMode 
+        // _conjunctMode
         //     ? _getEffectivePrimaryColor().withValues(alpha: 0.2) // Highlight when active
         //     : KeyboardConstants.specialKeyDefault,
         borderRadius: BorderRadius.circular(6),
@@ -1189,8 +1185,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: _conjunctMode 
-                    ? _getEffectivePrimaryColor() 
+                color: _conjunctMode
+                    ? _getEffectivePrimaryColor()
                     : KeyboardConstants.specialKeyBorder,
                 width: _conjunctMode ? 2 : 1,
               ),
@@ -1200,8 +1196,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                 '+',
                 style: TextStyle(
                   fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
-                  color: _conjunctMode 
-                      ? _getEffectivePrimaryColor() 
+                  color: _conjunctMode
+                      ? _getEffectivePrimaryColor()
                       : KeyboardConstants.textOnLight,
                   fontWeight: _conjunctMode ? FontWeight.bold : FontWeight.w500,
                 ),
@@ -1211,5 +1207,37 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         ),
       ),
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isLandscape = screenSize.width > screenSize.height;
+
+    // Responsive keyboard height management
+    final maxKeyboardHeight = isLandscape
+        ? screenSize.height *
+              0.4 // 40% max in landscape
+        : screenSize.height * 0.5; // 50% max in portrait
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: widget.height ?? maxKeyboardHeight,
+        minHeight: 0,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: widget.backgroundColor ?? KeyboardConstants.keyboardBackground,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        child: _buildAdaptiveKeyboardLayout(widget.height ?? maxKeyboardHeight),
+      ),
+    );
+  }
+
+  Widget _buildAdaptiveKeyboardLayout(double availableHeight) {
+    return _showNumericKeyboard
+        ? _buildAdaptiveNumericKeyboardLayout(availableHeight)
+        : _buildAdaptiveAlphaKeyboardLayout(availableHeight);
   }
 }

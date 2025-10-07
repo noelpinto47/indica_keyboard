@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - indica_keyboard (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - indica_keyboard (from `.symlinks/plugins/indica_keyboard/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  indica_keyboard:
+    :path: ".symlinks/plugins/indica_keyboard/ios"
+
+SPEC CHECKSUMS:
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  indica_keyboard: 767f0c1085daf96566530bf52d0e73872b60d957
+
+PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
+
+COCOAPODS: 1.16.2
