@@ -54,73 +54,78 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        title: const Text(
-          'Indica Keyboard Demo',
-          style: TextStyle(color: Colors.white),
+    return SafeArea(
+      top: false,
+      left: false,
+      right: false,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          title: const Text(
+            'Indica Keyboard Demo',
+            style: TextStyle(color: Colors.white),
+          ),
         ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Current Language: ${_getLanguageName(_currentLanguage)}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 16),
-            
-            // Text input field
-            Expanded(
-              child: TextField(
-                controller: _textController,
-                focusNode: _focusNode,
-                maxLines: null,
-                expands: true,
-                decoration: const InputDecoration(
-                  hintText: 'Tap here to start typing...',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.all(16),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Current Language: ${_getLanguageName(_currentLanguage)}',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 16),
+              
+              // Text input field
+              Expanded(
+                child: TextField(
+                  controller: _textController,
+                  focusNode: _focusNode,
+                  maxLines: null,
+                  expands: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Tap here to start typing...',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.all(16),
+                  ),
+                  style: const TextStyle(fontSize: 18),
+                  keyboardType: TextInputType.none, // Disable system keyboard
                 ),
-                style: const TextStyle(fontSize: 18),
-                keyboardType: TextInputType.none, // Disable system keyboard
               ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Clear button
-            Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  _textController.clear();
-                },
-                child: const Text('Clear Text'),
+              
+              const SizedBox(height: 16),
+              
+              // Clear button
+              Center(
+                child: ElevatedButton(
+                  onPressed: () {
+                    _textController.clear();
+                  },
+                  child: const Text('Clear Text'),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        
+        // Show Indica Keyboard when text field is focused
+        bottomSheet: _showKeyboard
+            ? IndicaKeyboard(
+                supportedLanguages: const ['en', 'hi', 'mr'],
+                initialLanguage: 'en',
+                textController: _textController,
+                onLanguageChanged: (language) {
+                  setState(() {
+                    _currentLanguage = language;
+                  });
+                },
+                showLanguageSwitcher: true,
+                enableHapticFeedback: true,
+                primaryColor: Colors.red,
+              )
+            : null,
       ),
-      
-      // Show Indica Keyboard when text field is focused
-      bottomSheet: _showKeyboard
-          ? IndicaKeyboard(
-              supportedLanguages: const ['en', 'hi', 'mr'],
-              initialLanguage: 'en',
-              textController: _textController,
-              onLanguageChanged: (language) {
-                setState(() {
-                  _currentLanguage = language;
-                });
-              },
-              showLanguageSwitcher: true,
-              enableHapticFeedback: true,
-              primaryColor: Colors.red,
-            )
-          : null,
     );
   }
 

@@ -1,0 +1,224 @@
+import Foundation
+
+/// High-performance native iOS text processor for Indica languages
+/// Optimized for Hindi, Marathi, and English text processing
+public class IndicaTextProcessor: NSObject {
+    
+    // MARK: - Performance Optimizations
+    
+    /// Shared instance for singleton pattern
+    public static let shared = IndicaTextProcessor()
+    
+    /// Character set cache for performance
+    private let devanagariCharacterSet: CharacterSet
+    private let englishCharacterSet: CharacterSet
+    
+    /// LRU Cache for conjunct mappings (most frequent patterns)
+    private var conjunctCache: [String: String] = [:]
+    private var cacheAccessOrder: [String] = []
+    private let maxCacheSize = 256
+    
+    /// Performance counters (atomic access)
+    private let counterQueue = DispatchQueue(label: "indica.counter.queue")
+    private var _processedCharCount: Int64 = 0
+    private var _cacheHits: Int64 = 0
+    private var _cacheMisses: Int64 = 0
+    
+    // MARK: - Initialization
+    
+    private override init() {
+        // Initialize optimized character sets
+        self.devanagariCharacterSet = CharacterSet(charactersIn: "अआइईउऊऋएऐओऔकखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसहक्षत्रज्ञश्र")
+        self.englishCharacterSet = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        
+        super.init()
+        
+        // Pre-populate cache with most common conjuncts
+        initializeConjunctCache()
+    }
+    
+    // MARK: - Public API
+    
+    /// Process text input with high-performance native processing
+    /// - Parameters:
+    ///   - input: Input text to process
+    ///   - language: Target language ('hi', 'mr', 'en')
+    ///   - enableConjuncts: Whether to process conjunct consonants
+    /// - Returns: Processed text
+    public func processTextInput(_ input: String, language: String, enableConjuncts: Bool = true) -> String {
+        guard !input.isEmpty else { return input }
+        
+        counterQueue.sync {
+            _processedCharCount += Int64(input.count)
+        }
+        
+        switch language.lowercased() {
+        case "hi", "mr":
+            return enableConjuncts ? processDevanagariWithConjuncts(input) : input
+        case "en":
+            return processEnglishText(input)
+        default:
+            return input
+        }
+    }
+    
+    /// Batch process multiple text inputs for optimal performance
+    /// - Parameters:
+    ///   - inputs: Array of text inputs
+    ///   - language: Target language
+    ///   - enableConjuncts: Whether to process conjunct consonants
+    /// - Returns: Array of processed texts
+    public func batchProcessText(_ inputs: [String], language: String, enableConjuncts: Bool = true) -> [String] {
+        return inputs.map { processTextInput($0, language: language, enableConjuncts: enableConjuncts) }
+    }
+    
+    /// Get performance statistics
+    /// - Returns: Dictionary with performance metrics
+    public func getPerformanceStats() -> [String: Any] {
+        return counterQueue.sync {
+            let totalRequests = _cacheHits + _cacheMisses
+            let hitRate = totalRequests > 0 ? Double(_cacheHits) / Double(totalRequests) * 100 : 0.0
+            
+            return [
+                "processedCharacters": _processedCharCount,
+                "cacheHits": _cacheHits,
+                "cacheMisses": _cacheMisses,
+                "cacheHitRate": String(format: "%.1f%%", hitRate),
+                "cacheSize": conjunctCache.count,
+                "platform": "iOS Native"
+            ]
+        }
+    }
+    
+    /// Clear performance counters
+    public func resetPerformanceStats() {
+        counterQueue.sync {
+            _processedCharCount = 0
+            _cacheHits = 0
+            _cacheMisses = 0
+        }
+    }
+    
+    // MARK: - Private Implementation
+    
+    /// Process Devanagari text with conjunct consonant formation
+    private func processDevanagariWithConjuncts(_ input: String) -> String {
+        var result = ""
+        var i = input.startIndex
+        
+        while i < input.endIndex {
+            let char = input[i]
+            
+            // Check for potential conjunct pattern (consonant + halant + consonant)
+            if i < input.index(input.endIndex, offsetBy: -2) {
+                let nextIndex = input.index(after: i)
+                let nextChar = input[nextIndex]
+                
+                if nextChar == "्" { // Halant character
+                    let thirdIndex = input.index(after: nextIndex)
+                    if thirdIndex < input.endIndex {
+                        let thirdChar = input[thirdIndex]
+                        let pattern = String(char) + String(nextChar) + String(thirdChar)
+                        
+                        if let conjunct = getCachedConjunct(pattern) {
+                            result.append(conjunct)
+                            i = input.index(after: thirdIndex)
+                            continue
+                        }
+                    }
+                }
+            }
+            
+            result.append(char)
+            i = input.index(after: i)
+        }
+        
+        return result
+    }
+    
+    /// Process English text (lightweight processing)
+    private func processEnglishText(_ input: String) -> String {
+        // For English, we mainly handle basic character processing
+        // Add any English-specific optimizations here
+        return input
+    }
+    
+    /// Get conjunct from cache or create new one
+    private func getCachedConjunct(_ pattern: String) -> String? {
+        // Check cache first
+        if let cached = conjunctCache[pattern] {
+            counterQueue.sync { _cacheHits += 1 }
+            updateCacheAccess(pattern)
+            return cached
+        }
+        
+        counterQueue.sync { _cacheMisses += 1 }
+        
+        // Generate conjunct if pattern is valid
+        if let conjunct = generateConjunct(pattern) {
+            addToCache(pattern: pattern, conjunct: conjunct)
+            return conjunct
+        }
+        
+        return nil
+    }
+    
+    /// Generate conjunct consonant from pattern
+    private func generateConjunct(_ pattern: String) -> String? {
+        // This is a simplified conjunct generation
+        // In production, this would contain comprehensive mapping logic
+        let conjunctMappings: [String: String] = [
+            "क्ष": "क्ष", "त्र": "त्र", "ज्ञ": "ज्ञ", "श्र": "श्र",
+            "द्व": "द्व", "स्व": "स्व", "स्त": "स्त", "स्प": "स्प",
+            "न्द": "न्द", "न्त": "न्त", "म्प": "म्प", "म्भ": "म्भ",
+            "ल्ल": "ल्ल", "र्य": "र्य", "व्य": "व्य", "श्य": "श्य"
+        ]
+        
+        return conjunctMappings[pattern]
+    }
+    
+    /// Add pattern to LRU cache
+    private func addToCache(pattern: String, conjunct: String) {
+        // Remove if cache is full
+        if conjunctCache.count >= maxCacheSize {
+            if let oldest = cacheAccessOrder.first {
+                conjunctCache.removeValue(forKey: oldest)
+                cacheAccessOrder.removeFirst()
+            }
+        }
+        
+        conjunctCache[pattern] = conjunct
+        cacheAccessOrder.append(pattern)
+    }
+    
+    /// Update cache access order for LRU
+    private func updateCacheAccess(_ pattern: String) {
+        if let index = cacheAccessOrder.firstIndex(of: pattern) {
+            cacheAccessOrder.remove(at: index)
+            cacheAccessOrder.append(pattern)
+        }
+    }
+    
+    /// Initialize cache with most common conjuncts
+    private func initializeConjunctCache() {
+        let commonConjuncts: [String: String] = [
+            "क्ष": "क्ष", // ksha
+            "त्र": "त्र", // tra  
+            "ज्ञ": "ज्ञ", // gya
+            "श्र": "श्र", // shra
+            "द्व": "द्व", // dwa
+            "स्व": "स्व", // swa
+            "स्त": "स्त", // sta
+            "न्द": "न्द", // nda
+            "न्त": "न्त", // nta
+            "म्प": "म्प", // mpa
+            "र्य": "र्य", // rya
+            "व्य": "व्य", // vya
+        ]
+        
+        for (pattern, conjunct) in commonConjuncts {
+            conjunctCache[pattern] = conjunct
+            cacheAccessOrder.append(pattern)
+        }
+    }
+}

@@ -68,17 +68,26 @@ class IndicaNativeService {
       _initialized = true;
       
       if (_loggingEnabled) {
+        // Get platform information for better logging
+        String platform = 'Unknown';
+        try {
+          platform = await _channel.invokeMethod('getPlatformVersion') ?? 'Unknown';
+        } catch (_) {}
+        
         developer.log(
           _nativeSupported 
-            ? '✅ Native Android processing initialized successfully'
-            : '⚠️ Native processing unavailable, using Dart fallback',
+            ? '✅ Native processing initialized successfully on $platform'
+            : '⚠️ Native processing unavailable on $platform, using Dart fallback',
           name: 'IndicaKeyboard',
           level: _nativeSupported ? 800 : 900,
         );
       }
       
-      // Note: We don't require system IME to be enabled for native text processing
-      // Native processing can work even with Dart UI keyboard
+      // Warm up caches for better initial performance
+      if (_nativeSupported) {
+        _warmUpNativeCaches(['en', 'hi', 'mr']);
+      }
+      
       return _nativeSupported;
     } catch (e) {
       // Fallback to Dart implementation with logging
@@ -475,5 +484,130 @@ class IndicaNativeService {
         level: 800,
       );
     }
+  }
+  
+  // MARK: - iOS/Android Optimization Methods
+  
+  /// Warm up native caches for better initial performance
+  static Future<void> _warmUpNativeCaches(List<String> languages) async {
+    if (!_nativeSupported) return;
+    
+    try {
+      await _channel.invokeMethod('warmUpCaches', {
+        'languages': languages,
+      });
+      
+      if (_loggingEnabled) {
+        developer.log(
+          '🔥 Native caches warmed up for languages: ${languages.join(", ")}',
+          name: 'IndicaKeyboard',
+        );
+      }
+    } catch (e) {
+      if (_loggingEnabled) {
+        developer.log(
+          '⚠️ Cache warm-up failed: $e',
+          name: 'IndicaKeyboard',
+          level: 900,
+        );
+      }
+    }
+  }
+  
+  /// Optimize native processing for specific language
+  static Future<void> optimizeForLanguage(String language) async {
+    if (!_nativeSupported) return;
+    
+    try {
+      await _channel.invokeMethod('optimizeForLanguage', {
+        'language': language,
+      });
+      
+      if (_loggingEnabled) {
+        developer.log(
+          '⚡ Native processing optimized for language: $language',
+          name: 'IndicaKeyboard',
+        );
+      }
+    } catch (e) {
+      if (_loggingEnabled) {
+        developer.log(
+          '⚠️ Language optimization failed for $language: $e',
+          name: 'IndicaKeyboard',
+          level: 900,
+        );
+      }
+    }
+  }
+  
+  /// Get advanced native performance metrics (iOS/Android specific)
+  static Future<Map<String, dynamic>> getAdvancedMetrics() async {
+    if (!_nativeSupported) {
+      return {
+        'platform': 'Dart-only',
+        'error': 'Native processing not available'
+      };
+    }
+    
+    try {
+      final metrics = await _channel.invokeMethod('getPerformanceMetrics');
+      return Map<String, dynamic>.from(metrics ?? {});
+    } catch (e) {
+      if (_loggingEnabled) {
+        developer.log(
+          '⚠️ Failed to get advanced metrics: $e',
+          name: 'IndicaKeyboard',
+          level: 900,
+        );
+      }
+      return {
+        'error': e.toString(),
+        'fallback': getProcessingStats(),
+      };
+    }
+  }
+  
+  /// Batch process multiple texts with native optimization (iOS/Android)
+  static Future<List<String>> batchProcessText({
+    required List<String> texts,
+    required String language,
+    bool enableConjuncts = true,
+    bool useOptimized = true,
+  }) async {
+    // Auto-initialize if not done yet
+    if (!_initialized) {
+      await initialize();
+    }
+    
+    // Try native batch processing first (if available)
+    if (_nativeSupported) {
+      try {
+        final result = await _channel.invokeMethod('batchProcessText', {
+          'texts': texts,
+          'language': language,
+          'enableConjuncts': enableConjuncts,
+          'useOptimized': useOptimized,
+        });
+        
+        _logProcessing('batchProcessText', true, 'processed ${texts.length} texts');
+        return List<String>.from(result ?? []);
+      } catch (e) {
+        _logProcessing('batchProcessText', false, 'native batch failed: $e');
+      }
+    } else {
+      _logProcessing('batchProcessText', false, 'native not supported');
+    }
+    
+    // Dart fallback: process each text individually
+    final processedTexts = <String>[];
+    for (final text in texts) {
+      final processed = await processText(
+        text: text,
+        language: language,
+      );
+      processedTexts.add(processed);
+    }
+    
+    return processedTexts;
   }
 }

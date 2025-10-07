@@ -1,6 +1,6 @@
 PODS:
   - Flutter (1.0.0)
-  - indica_keyboard (0.0.1):
+  - indica_keyboard (0.1.0):
     - Flutter
 
 DEPENDENCIES:
@@ -15,7 +15,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  indica_keyboard: 767f0c1085daf96566530bf52d0e73872b60d957
+  indica_keyboard: a81d27e7da18d7541d0aac8b192c8cba8e6a5885
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
 
