@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:indica_keyboard/src/services/indica_native_service.dart';
+import 'package:indica_keyboard/indica_keyboard.dart';
 import 'dart:developer' as developer;
 
 /// Performance benchmark widget for testing native integration
