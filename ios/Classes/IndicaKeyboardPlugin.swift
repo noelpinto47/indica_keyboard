@@ -159,7 +159,7 @@ public class IndicaKeyboardPlugin: NSObject, FlutterPlugin {
     private func getBasicMetrics() -> [String: Any] {
         return [
             "platform": "iOS Native Basic",
-            "version": "0.1.0",
+            "version": "1.0.0",
             "processingMode": "native",
             "cacheStatistics": [
                 "hitRate": "95.0%",

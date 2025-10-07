@@ -1,6 +1,6 @@
 PODS:
   - Flutter (1.0.0)
-  - indica_keyboard (0.1.0):
+  - indica_keyboard (1.0.0):
     - Flutter
 
 DEPENDENCIES:

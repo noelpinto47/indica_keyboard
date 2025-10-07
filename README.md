@@ -32,7 +32,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  indica_keyboard: ^0.1.0
+  indica_keyboard: ^1.0.0
 ```
 
 ## Quick Start
@@ -192,7 +192,7 @@ Multiple layout pages provide access to complex conjunct consonants:
 
 ## Production Deployment
 
-IndicaKeyboard v0.1.0 is production-ready with enterprise-grade performance optimizations:
+IndicaKeyboard v1.0.0 is production-ready with enterprise-grade performance optimizations:
 
 - ✅ **Native Android Integration**: Full InputMethodService implementation
 - ✅ **Ultra-Fast Processing**: 3-5x faster text processing with LRU caches
