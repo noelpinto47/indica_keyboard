@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:indica_keyboard/indica_keyboard.dart';
+import 'performance_benchmark.dart';
 
 void main() {
   runApp(const MyApp());
@@ -65,6 +66,18 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
             'Indica Keyboard Demo',
             style: TextStyle(color: Colors.white),
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.speed, color: Colors.white),
+              tooltip: 'Performance Benchmark',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PerformanceBenchmark()),
+                );
+              },
+            ),
+          ],
         ),
         body: Padding(
           padding: const EdgeInsets.all(16.0),

@@ -1,6 +1,6 @@
 name: indica_keyboard
-description: "A high-performance multilingual keyboard plugin for Flutter with native Android optimization. Supports English, Hindi, and Marathi with 3-5x faster text processing, automatic conjunct formation, intelligent text input, and seamless native-Dart fallback."
-version: 0.1.0
+description: "A production-ready, high-performance multilingual keyboard plugin for Flutter with native Android and iOS integration. Supports English, Hindi, and Marathi with 3-5x faster text processing, automatic conjunct formation, intelligent text input, and seamless native-Dart fallback."
+version: 1.0.0
 homepage: https://github.com/noelpinto47/indica_keyboard
 repository: https://github.com/noelpinto47/indica_keyboard
 issue_tracker: https://github.com/noelpinto47/indica_keyboard/issues
