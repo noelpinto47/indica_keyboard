@@ -25,6 +25,7 @@ class IndicaKeyboard extends StatefulWidget {
   final Function(bool)?
   onDialogStateChanged; // Notify parent about dialog state
   final String initialLanguage;
+  final String? currentLanguage;
   final Function(String)? onLanguageChanged;
   final Function(String)? onKeyPressed;
   final double? height;
@@ -47,6 +48,7 @@ class IndicaKeyboard extends StatefulWidget {
     this.useNativeKeyboard = true,
     this.onDialogStateChanged,
     this.initialLanguage = 'en',
+    this.currentLanguage,
     this.onLanguageChanged,
     this.onKeyPressed,
     this.height,
@@ -114,7 +116,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   @override
   void initState() {
     super.initState();
-    _currentLanguage = widget.initialLanguage;
+    _currentLanguage = widget.currentLanguage ?? widget.initialLanguage;
 
     // Initialize native service for automatic high-performance processing
     IndicaNativeService.initialize();
@@ -140,6 +142,24 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
     // Performance: Pre-warm all caches for zero-latency access
     KeyboardLayout.preWarmAllCaches();
+  }
+
+  @override
+  void didUpdateWidget(IndicaKeyboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Handle external language changes via currentLanguage parameter
+    if (widget.currentLanguage != null && 
+        widget.currentLanguage != oldWidget.currentLanguage &&
+        widget.currentLanguage != _currentLanguage) {
+      setState(() {
+        _currentLanguage = widget.currentLanguage!;
+        _currentLayoutPage = 0; // Reset to first page when switching languages
+        _selectedLetter = null; // Clear selection when switching languages
+        _layoutCacheInvalid = true; // Invalidate layout cache
+      });
+      // Note: We don't call widget.onLanguageChanged here to avoid circular updates
+    }
   }
 
   void _loadKeyboardLayouts() {

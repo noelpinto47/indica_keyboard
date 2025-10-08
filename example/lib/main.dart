@@ -33,7 +33,6 @@ class KeyboardDemoPage extends StatefulWidget {
 class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
   final TextEditingController _textController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  bool _showKeyboard = false;
   String _currentLanguage = 'en';
 
   @override
@@ -41,7 +40,6 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
     super.initState();
     _focusNode.addListener(() {
       setState(() {
-        _showKeyboard = _focusNode.hasFocus;
       });
     });
   }
@@ -73,7 +71,9 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const PerformanceBenchmark()),
+                  MaterialPageRoute(
+                    builder: (context) => const PerformanceBenchmark(),
+                  ),
                 );
               },
             ),
@@ -123,21 +123,20 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
         ),
 
         // Show Indica Keyboard when text field is focused
-        bottomSheet: _showKeyboard
-            ? IndicaKeyboard(
-                    supportedLanguages: const ['en', 'hi', 'mr'],
-                    initialLanguage: 'en',
-                    textController: _textController,
-                    onLanguageChanged: (language) {
-                      setState(() {
-                        _currentLanguage = language;
-                      });
-                    },
-                    showLanguageSwitcher: true,
-                    enableHapticFeedback: true,
-                    primaryColor: Colors.red,
-              )
-            : null,
+        bottomSheet: IndicaKeyboard(
+          supportedLanguages: const ['en', 'hi', 'mr'],
+          initialLanguage: 'en',
+          currentLanguage: _currentLanguage,
+          textController: _textController,
+          onLanguageChanged: (language) {
+            setState(() {
+              _currentLanguage = language;
+            });
+          },
+          showLanguageSwitcher: true,
+          enableHapticFeedback: false,
+          primaryColor: Colors.red,
+        ),
       ),
     );
   }
