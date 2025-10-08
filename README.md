@@ -1,3 +1,5 @@
+![Indica Keyboard Banner](https://raw.githubusercontent.com/noelpinto47/indica_keyboard/main/assets/images/indica_keyboard_banner.png)
+
 # Indica Keyboard Plugin
 
 A **high-performance multilingual keyboard plugin** for Flutter with **native Android optimization**. Delivers enterprise-grade text processing with automatic fallback for maximum reliability.
@@ -225,8 +227,8 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history and native Android
 
 ## Support
 
-- 📧 Report issues on [GitHub Issues](https://github.com/yourusername/indica_keyboard/issues)
-- 💬 Questions? Start a [Discussion](https://github.com/yourusername/indica_keyboard/discussions)
+- 📧 Report issues on [GitHub Issues](https://github.com/noelpinto47/indica_keyboard/issues)
+- 💬 Questions? Start a [Discussion](https://github.com/noelpinto47/indica_keyboard/discussions)
 - 📖 Full documentation coming soon
 
 ## License

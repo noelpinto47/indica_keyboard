@@ -13,6 +13,10 @@ topics:
   - marathi
   - devanagari
 
+screenshots:
+  - description: 'Indica Keyboard supports multilingual input with native optimization'
+    path: assets/images/indica_keyboard_banner.png
+
 environment:
   sdk: ^3.9.0
   flutter: '>=3.3.0'
@@ -38,9 +42,10 @@ flutter:
       ios:
         pluginClass: IndicaKeyboardPlugin
 
-  # Assets for the keyboard icons
+  # Assets for the keyboard icons and images
   assets:
     - assets/icons/
+    - assets/images/
   #
   # For details regarding assets in packages, see
   # https://flutter.dev/to/asset-from-package
