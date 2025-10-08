@@ -145,7 +145,7 @@ class IndicaKeyboardPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 val stats = optimizedProcessor.getAdvancedCacheStats()
                 val unifiedMetrics = mapOf(
                     "platform" to "Android Native Optimized",
-                    "version" to "1.0.0",
+                    "version" to "1.0.1",
                     "processingMode" to "native",
                     "cacheStatistics" to mapOf(
                         "hitRate" to "${stats["cacheHitRate"] ?: "95.0%"}",
