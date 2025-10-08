@@ -221,14 +221,17 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       final currentText = controller.text;
       final selection = controller.selection;
 
-      if (currentText.isNotEmpty && selection.start > 0) {
+      // Validate selection bounds for backspace
+      if (currentText.isNotEmpty && 
+          selection.start > 0 && 
+          selection.start <= currentText.length) {
         // Delete character before cursor
         final newText = currentText.replaceRange(
           selection.start - 1,
           selection.start,
           '',
         );
-        final newOffset = selection.start - 1;
+        final newOffset = (selection.start - 1).clamp(0, newText.length);
 
         controller.value = TextEditingValue(
           text: newText,
@@ -239,12 +242,17 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       // Handle regular text input at cursor position
       final currentText = controller.text;
       final selection = controller.selection;
+      
+      // Validate selection bounds for text input
+      final safeStart = selection.start.clamp(0, currentText.length);
+      final safeEnd = selection.end.clamp(safeStart, currentText.length);
+      
       final newText = currentText.replaceRange(
-        selection.start,
-        selection.end,
+        safeStart,
+        safeEnd,
         text,
       );
-      final newOffset = selection.start + text.length;
+      final newOffset = (safeStart + text.length).clamp(0, newText.length);
 
       controller.value = TextEditingValue(
         text: newText,
