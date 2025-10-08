@@ -1,3 +1,13 @@
+## 1.0.1 - Enhanced Control & User Experience
+
+* **🔧 NEW: currentLanguage Parameter** - Added optional `currentLanguage` parameter for external language state synchronization
+* **🔄 ENHANCED: Bidirectional Language Sync** - Perfect synchronization between app language state and keyboard display
+* **🎯 IMPROVED: Developer Control** - Developers can now programmatically control keyboard language from parent widgets
+* **📱 ENHANCED: didUpdateWidget Implementation** - Automatic keyboard updates when language changes externally
+* **🛠️ IMPROVED: API Flexibility** - Backward compatible enhancement for better integration patterns
+* **📚 ENHANCED: Example App** - Updated example demonstrating new currentLanguage parameter usage
+* **✨ REFINED: User Experience** - Smoother language switching with improved state management
+
 ## 1.0.0 - Production Release
 
 * **🎉 MILESTONE: Production Ready** - First stable release with comprehensive testing and optimization
