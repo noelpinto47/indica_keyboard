@@ -1,3 +1,11 @@
+## 1.1.1 - Critical Conjunct Mode Fix
+
+* **🔧 FIXED: Conjunct Mode Deactivation** - Resolved issue where conjunct formation button (+) in Hindi/Marathi keyboards would activate but not visually deactivate
+* **🎯 ENHANCED: ValueNotifier Consistency** - Fixed missing ValueNotifier update in async conjunct processing method for immediate UI feedback
+* **🛡️ IMPROVED: Error Handling** - Added proper early return when conjunct formation fails to prevent state confusion
+* **🔄 ENHANCED: Language Switching** - Conjunct mode now properly resets when switching between languages for clean state management
+* **✨ REFINED: Visual Feedback** - Conjunct button appearance now perfectly matches internal state in all scenarios
+
 ## 1.1.0 - Performance Revolution & Auto-Capitalization Excellence
 
 * **🚀 MAJOR: Performance Architecture Overhaul** - Revolutionary ValueNotifier system for granular UI updates, eliminating unnecessary full widget rebuilds

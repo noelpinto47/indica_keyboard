@@ -34,7 +34,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  indica_keyboard: ^1.1.0
+  indica_keyboard: ^1.1.1
 ```
 
 ## Quick Start
