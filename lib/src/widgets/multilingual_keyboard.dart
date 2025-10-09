@@ -174,6 +174,13 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       _selectedLetter = null; // Clear selection when switching languages
       _layoutCacheInvalid = true; // Invalidate layout cache
       
+      // Reset conjunct mode when switching languages
+      if (_conjunctMode) {
+        _conjunctMode = false;
+        _pendingConsonant = null;
+        _conjunctModeNotifier.value = false;
+      }
+      
       // Update ValueNotifiers for UI consistency
       _layoutPageNotifier.value = _currentLayoutPage;
       
@@ -487,16 +494,16 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       );
 
       // Reset conjunct mode
-      setState(() {
-        _conjunctMode = false;
-        _pendingConsonant = null;
-      });
+      _conjunctMode = false;
+      _pendingConsonant = null;
+      _conjunctModeNotifier.value = false; // Update ValueNotifier for UI consistency
 
       return; // Don't process normal input
     }
 
     // If we couldn't find the consonant, reset conjunct mode
     _resetConjunctMode();
+    return; // Don't process the key normally if conjunct processing failed
   }
 
   // Reset conjunct mode
@@ -686,6 +693,13 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         _currentLayoutPage = 0; // Reset to first page when switching languages
         _selectedLetter = null; // Clear selection when switching languages
         _layoutCacheInvalid = true; // Invalidate layout cache
+        
+        // Reset conjunct mode when switching languages
+        if (_conjunctMode) {
+          _conjunctMode = false;
+          _pendingConsonant = null;
+          _conjunctModeNotifier.value = false;
+        }
       });
       widget.onLanguageChanged?.call(language);
     }
