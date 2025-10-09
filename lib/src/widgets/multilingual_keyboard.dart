@@ -891,24 +891,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   Widget _buildNumericBottomRow(List<String> keys, double keyHeight) {
     return Row(
       children: [
-        // Special symbols key (wider)
-        Expanded(
-          flex: 1,
-          child: _buildSpecialKey(
-            keys[0], // 'more'
-            onTap: () {
-              if (keys[0].contains('more')) {
-                return;
-              } else {
-                _onKeyPress(keys[0]);
-              }
-            },
-            keyHeight: keyHeight,
-          ),
-        ),
-
         // Regular symbol keys
-        ...keys.skip(1).map((key) {
+        ...keys.map((key) {
           return Expanded(child: _buildKey(key, keyHeight));
         }),
 
