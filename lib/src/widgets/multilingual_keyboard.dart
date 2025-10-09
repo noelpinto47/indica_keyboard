@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../models/keyboard_layout.dart';
 import '../constants/keyboard_constants.dart';
+import '../constants/performance_constants.dart';
 import '../services/indica_native_service.dart';
 
 // Enum for three-state shift key behavior
@@ -76,6 +77,18 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   bool _keyboardVisible = false;
   final bool _isDialogOpen = false;
 
+  // 🚀 PERFORMANCE: ValueNotifiers for granular rebuilds
+  late final ValueNotifier<ShiftState> _shiftStateNotifier;
+  late final ValueNotifier<bool> _conjunctModeNotifier;
+  late final ValueNotifier<int> _layoutPageNotifier;
+  late final ValueNotifier<bool> _showNumericNotifier;
+  late final ValueNotifier<bool> _autoCapitalizeNotifier;
+  
+  // 🚀 PERFORMANCE: Cached expensive computations
+  bool? _cachedShouldCapitalize;
+  String? _cachedControllerText;
+  double? _cachedKeyboardHeight;
+
   // Conjunct consonant formation state
   bool _conjunctMode = false; // Whether conjunct formation is active
   String? _pendingConsonant; // The consonant waiting to be joined
@@ -120,6 +133,13 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     super.initState();
     _currentLanguage = widget.currentLanguage ?? widget.initialLanguage;
 
+    // 🚀 PERFORMANCE: Initialize ValueNotifiers for granular updates
+    _shiftStateNotifier = ValueNotifier(_shiftState);
+    _conjunctModeNotifier = ValueNotifier(_conjunctMode);
+    _layoutPageNotifier = ValueNotifier(_currentLayoutPage);
+    _showNumericNotifier = ValueNotifier(_showNumericKeyboard);
+    _autoCapitalizeNotifier = ValueNotifier(false);
+
     // Initialize native service for automatic high-performance processing
     IndicaNativeService.initialize();
 
@@ -131,13 +151,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       _internalFocusNode.addListener(_handleFocusChange);
     }
 
-    // Listen to text changes to update keyboard capitalization display
+    // 🚀 PERFORMANCE: Optimized text controller listener with debouncing
     if (widget.textController != null) {
-      widget.textController!.addListener(() {
-        if (mounted && _currentLanguage == 'en' && _shouldAutoCapitalize) {
-          setState(() {}); // Rebuild keyboard to show/hide capitalization
-        }
-      });
+      widget.textController!.addListener(_onTextControllerChange);
     }
 
     _loadKeyboardLayouts();
@@ -154,12 +170,15 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     if (widget.currentLanguage != null && 
         widget.currentLanguage != oldWidget.currentLanguage &&
         widget.currentLanguage != _currentLanguage) {
-      setState(() {
-        _currentLanguage = widget.currentLanguage!;
-        _currentLayoutPage = 0; // Reset to first page when switching languages
-        _selectedLetter = null; // Clear selection when switching languages
-        _layoutCacheInvalid = true; // Invalidate layout cache
-      });
+      // 🚀 PERFORMANCE: Use ValueNotifiers for granular updates
+      _currentLanguage = widget.currentLanguage!;
+      _currentLayoutPage = 0; // Reset to first page when switching languages
+      _selectedLetter = null; // Clear selection when switching languages
+      _layoutCacheInvalid = true; // Invalidate layout cache
+      
+      // Update ValueNotifiers for UI consistency
+      _layoutPageNotifier.value = _currentLayoutPage;
+      
       // Note: We don't call widget.onLanguageChanged here to avoid circular updates
     }
   }
@@ -207,6 +226,38 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       borderRadius: _keyBorderRadius,
       border: Border.all(color: KeyboardConstants.specialKeyBorder, width: 1),
     );
+  }
+
+  // 🚀 PERFORMANCE: Optimized text controller change handler with caching
+  void _onTextControllerChange() {
+    if (!mounted || _currentLanguage != 'en' || !_shouldAutoCapitalize) return;
+    
+    final currentText = widget.textController?.text;
+    if (currentText == _cachedControllerText) return; // No change, skip
+    
+    _cachedControllerText = currentText;
+    _cachedShouldCapitalize = null; // Invalidate cache
+    
+    // Only rebuild if capitalization state actually changed
+    final newShouldCapitalize = _shouldCapitalizeCached();
+    if (newShouldCapitalize != (_cachedShouldCapitalize ?? false)) {
+      _cachedShouldCapitalize = newShouldCapitalize;
+      _autoCapitalizeNotifier.value = newShouldCapitalize; // Update auto-cap state
+      // No setState needed - ValueListenableBuilder will handle updates
+    }
+  }
+
+  // 🚀 PERFORMANCE: Cached version of _shouldCapitalize to avoid expensive recalculations
+  bool _shouldCapitalizeCached() {
+    if (_cachedShouldCapitalize != null && 
+        widget.textController?.text == _cachedControllerText) {
+      return _cachedShouldCapitalize!;
+    }
+    
+    final result = _shouldCapitalize();
+    _cachedShouldCapitalize = result;
+    _cachedControllerText = widget.textController?.text;
+    return result;
   }
 
   // Internal text input handling
@@ -289,6 +340,12 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
   @override
   void dispose() {
+    // 🚀 PERFORMANCE: Dispose ValueNotifiers to prevent memory leaks
+    _shiftStateNotifier.dispose();
+    _conjunctModeNotifier.dispose();
+    _layoutPageNotifier.dispose();
+    _showNumericNotifier.dispose();
+    
     // Only dispose if we created the focus node internally
     if (widget.focusNode == null) {
       _internalFocusNode.dispose();
@@ -340,10 +397,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
     // If already in conjunct mode, toggle it off
     if (_conjunctMode) {
-      setState(() {
-        _conjunctMode = false;
-        _pendingConsonant = null;
-      });
+      _conjunctMode = false;
+      _pendingConsonant = null;
+      _conjunctModeNotifier.value = false; // Use ValueNotifier
       return;
     }
 
@@ -360,12 +416,11 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     final beforeCursor = text.substring(selection.start - 1, selection.start);
 
     if (_isDevanagariConsonant(beforeCursor)) {
-      setState(() {
-        _conjunctMode = true;
-        _pendingConsonant = beforeCursor;
-      });
+      _conjunctMode = true;
+      _pendingConsonant = beforeCursor;
+      _conjunctModeNotifier.value = true; // Use ValueNotifier
 
-      // Visual feedback - the button will highlight automatically due to state change
+      // Visual feedback - the button will highlight automatically due to ValueNotifier change
     }
   }
 
@@ -418,12 +473,12 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   }
 
   // Reset conjunct mode
+  // 🚀 PERFORMANCE: Reset conjunct mode with ValueNotifier
   void _resetConjunctMode() {
     if (_conjunctMode) {
-      setState(() {
-        _conjunctMode = false;
-        _pendingConsonant = null;
-      });
+      _conjunctMode = false;
+      _pendingConsonant = null;
+      _conjunctModeNotifier.value = false; // Use ValueNotifier
     }
   }
 
@@ -452,16 +507,15 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     return layout;
   }
 
-  // Switch to next layout page (for non-English keyboards)
+  // 🚀 PERFORMANCE: Use ValueNotifier for layout page switching
   void _switchLayoutPage() {
     if (_currentLanguage == 'en') return; // English doesn't have layout pages
 
     final maxPages = _maxLayoutPages[_currentLanguage] ?? 1;
-    setState(() {
-      _currentLayoutPage = (_currentLayoutPage + 1) % maxPages;
-      _selectedLetter = null; // Clear selection when switching pages
-      _layoutCacheInvalid = true; // Invalidate layout cache
-    });
+    _currentLayoutPage = (_currentLayoutPage + 1) % maxPages;
+    _selectedLetter = null; // Clear selection when switching pages
+    _layoutCacheInvalid = true; // Invalidate layout cache
+    _layoutPageNotifier.value = _currentLayoutPage; // Granular update
   }
 
   // Get layout page indicator text
@@ -471,70 +525,58 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     return '${_currentLayoutPage + 1}/$maxPages';
   }
 
-  // CRITICAL PATH: This runs on every key press - OPTIMIZED FOR ZERO LATENCY
+  // 🚀 CRITICAL PATH: ULTRA-OPTIMIZED for zero-latency typing
   void _onKeyPress(String key) {
-    // Handle conjunct formation for Devanagari consonants
+    // Fast path: Handle conjunct formation for Devanagari consonants
     if (_conjunctMode && _isDevanagariConsonant(key)) {
       _processConjunctConsonant(key);
       widget.onKeyPressed?.call(key);
-      return; // Don't process normal input
+      return; // Early return - no state updates needed
     }
 
-    // Reset conjunct mode on any other key press
+    // Fast path: Reset conjunct mode (ValueNotifier update, not setState)
     if (_conjunctMode) {
-      _resetConjunctMode();
+      _conjunctMode = false;
+      _pendingConsonant = null;
+      _conjunctModeNotifier.value = false; // Granular update
     }
 
-    // PERFORMANCE: Remove try-catch from critical path
-    // Handle three-state capitalization inline for speed
-    final shouldUpperCase =
-        _isUpperCase &&
-        key.length == 1 &&
-        key.toLowerCase() != key.toUpperCase();
-    final shouldAutoCapitalize =
-        !_isUpperCase &&
-        _shouldCapitalize() &&
-        key.length == 1 &&
-        key.toLowerCase() != key.toUpperCase();
-    final finalKey = shouldUpperCase
-        ? key.toUpperCase()
-        : (shouldAutoCapitalize ? key.toUpperCase() : key);
+    // 🚀 PERFORMANCE: Pre-compute expensive checks once
+    final isLetter = key.length == 1 && key.toLowerCase() != key.toUpperCase();
+    final shouldUpperCase = _isUpperCase && isLetter;
+    final shouldAutoCapitalize = !_isUpperCase && isLetter && _shouldCapitalizeCached();
+    
+    // Fast string conversion (avoid multiple toUpperCase calls)
+    final finalKey = (shouldUpperCase || shouldAutoCapitalize) ? key.toUpperCase() : key;
 
-    // PERFORMANCE: Batch state updates to minimize rebuilds
-    bool needsStateUpdate = false;
+    // 🚀 PERFORMANCE: Micro-batched state updates with ValueNotifiers
+    bool needsShiftUpdate = false;
     if (_shiftState == ShiftState.single && shouldUpperCase) {
       _shiftState = ShiftState.off;
-      needsStateUpdate = true;
+      needsShiftUpdate = true;
     }
 
-    // Handle auto-capitalization state tracking
+    // Cache invalidation for auto-capitalization
     if (shouldAutoCapitalize) {
       _justUsedAutoCapitalization = true;
-      needsStateUpdate = true;
-    } else if (key.length == 1) {
-      if (key.toLowerCase() != key.toUpperCase()) {
-        // Reset auto-capitalization flag when typing any letter (not punctuation)
-        if (_justUsedAutoCapitalization) {
-          _justUsedAutoCapitalization = false;
-          needsStateUpdate = true;
-        }
-      } else if (key == '.' || key == '!' || key == '?') {
-        // Reset auto-capitalization flag when typing sentence-ending punctuation
-        // so it can work for the next sentence
-        if (_justUsedAutoCapitalization) {
-          _justUsedAutoCapitalization = false;
-          needsStateUpdate = true;
-        }
+      _cachedShouldCapitalize = null; // Invalidate cache
+    } else if (isLetter || key == '.' || key == '!' || key == '?') {
+      if (_justUsedAutoCapitalization) {
+        _justUsedAutoCapitalization = false;
+        _cachedShouldCapitalize = null; // Invalidate cache
       }
     }
 
-    // Send text immediately (don't await)
+    // 🚀 PERFORMANCE: Send text immediately without awaiting any UI updates
     _handleTextInput(finalKey);
     widget.onKeyPressed?.call(finalKey);
+    
+    // Track performance and trigger cleanup if needed
+    PerformanceUtils.onKeyPress();
 
-    // Update state only if needed
-    if (needsStateUpdate) {
-      setState(() {});
+    // 🚀 PERFORMANCE: Use ValueNotifier for shift key updates (avoids full setState)
+    if (needsShiftUpdate) {
+      _shiftStateNotifier.value = _shiftState;
     }
   }
 
@@ -542,41 +584,42 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     _handleTextInput('⌫');
   }
 
+  // 🚀 PERFORMANCE: Optimized _toggleCase with ValueNotifier updates
   void _toggleCase() {
     if (_currentLanguage == 'en') {
       // Handle shift key for English
       final now = DateTime.now();
-      final isAutoCapActive = _shouldCapitalize();
+      final isAutoCapActive = _shouldCapitalizeCached();
       
       if (_lastShiftTap != null &&
           now.difference(_lastShiftTap!) < doubleTapThreshold) {
         // Double tap: activate caps lock
-        setState(() {
-          _shiftState = ShiftState.capsLock;
-          // When user manually activates caps lock, disable auto-capitalization
-          if (isAutoCapActive) {
-            _justUsedAutoCapitalization = true;
-          }
-        });
+        _shiftState = ShiftState.capsLock;
+        // When user manually activates caps lock, disable auto-capitalization
+        if (isAutoCapActive) {
+          _justUsedAutoCapitalization = true;
+          _cachedShouldCapitalize = null; // Invalidate cache
+        }
+        _shiftStateNotifier.value = _shiftState; // Update ValueNotifier
       } else {
         // Single tap: cycle through states with auto-capitalization awareness
-        setState(() {
-          switch (_shiftState) {
-            case ShiftState.off:
-              // If auto-capitalization is active and user clicks the "active" shift key,
-              // they expect to turn off capitalization, so disable auto-cap and keep shift off
-              if (isAutoCapActive) {
-                _justUsedAutoCapitalization = true; // Disable auto-cap for this context
-              } else {
-                _shiftState = ShiftState.single;
-              }
-              break;
-            case ShiftState.single:
-            case ShiftState.capsLock:
-              _shiftState = ShiftState.off;
-              break;
-          }
-        });
+        switch (_shiftState) {
+          case ShiftState.off:
+            // If auto-capitalization is active and user clicks the "active" shift key,
+            // they expect to turn off capitalization, so disable auto-cap and keep shift off
+            if (isAutoCapActive) {
+              _justUsedAutoCapitalization = true; // Disable auto-cap for this context
+              _cachedShouldCapitalize = null; // Invalidate cache
+            } else {
+              _shiftState = ShiftState.single;
+            }
+            break;
+          case ShiftState.single:
+          case ShiftState.capsLock:
+            _shiftState = ShiftState.off;
+            break;
+        }
+        _shiftStateNotifier.value = _shiftState; // Update ValueNotifier
       }
       _lastShiftTap = now;
     } else {
@@ -585,10 +628,11 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     }
   }
 
+  // 🚀 PERFORMANCE: Use ValueNotifier instead of setState for keyboard toggle
   void _toggleNumericKeyboard() {
-    setState(() {
-      _showNumericKeyboard = !_showNumericKeyboard;
-    });
+    _showNumericKeyboard = !_showNumericKeyboard;
+    _showNumericNotifier.value = _showNumericKeyboard;
+    _layoutCacheInvalid = true; // Invalidate layout cache
   }
 
   void _toggleLanguageSelector() {
@@ -627,7 +671,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   /// Helper method to get shift key icon path based on state
   String _getShiftIconPath(ShiftState shiftState) {
     // Check if auto-capitalization is active (should show as enabled)
-    final isAutoCapActive = _currentLanguage == 'en' && _shouldCapitalize();
+    final isAutoCapActive = _currentLanguage == 'en' && _shouldCapitalizeCached();
 
     switch (shiftState) {
       case ShiftState.capsLock:
@@ -760,6 +804,17 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
   /// 🎹 Build expandable alpha keyboard that fills the given height optimally
   Widget _buildExpandableAlphaKeyboardLayout(double totalKeyboardHeight) {
+    // 🚀 PERFORMANCE: Listen to layout page changes for multi-page languages
+    return ValueListenableBuilder<int>(
+      valueListenable: _layoutPageNotifier,
+      builder: (context, currentLayoutPage, child) {
+        return _buildAlphaKeyboardContent(totalKeyboardHeight);
+      },
+    );
+  }
+
+  /// Build the actual alpha keyboard content
+  Widget _buildAlphaKeyboardContent(double totalKeyboardHeight) {
     final layout = _getCurrentLayout();
 
     // 🎯 Calculate key height to perfectly fill available space
@@ -1003,19 +1058,70 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     );
   }
 
+  // 🚀 PERFORMANCE: Optimized _buildKey with ValueListenableBuilder for capitalization
   Widget _buildKey(String key, double keyHeight) {
-    // PERFORMANCE: Pre-compute case conversion
-    final shouldUpperCase =
-        _isUpperCase &&
-        key.length == 1 &&
-        key.toLowerCase() != key.toUpperCase();
-    final shouldAutoCapitalize =
-        _shouldCapitalize() &&
-        key.length == 1 &&
-        key.toLowerCase() != key.toUpperCase();
-    final displayKey = (shouldUpperCase || shouldAutoCapitalize)
-        ? key.toUpperCase()
-        : key;
+    // Only use ValueListenableBuilder for letters that can be capitalized
+    final isLetter = key.length == 1 && key.toLowerCase() != key.toUpperCase();
+    
+    if (!isLetter) {
+      // Non-letters don't need capitalization logic
+      return _buildStaticKey(key, keyHeight);
+    }
+    
+    // Letters need to respond to shift state changes
+    return ValueListenableBuilder<ShiftState>(
+      valueListenable: _shiftStateNotifier,
+      builder: (context, shiftState, child) {
+        final shouldUpperCase = shiftState != ShiftState.off && _currentLanguage == 'en';
+        final shouldAutoCapitalize = !shouldUpperCase && _shouldCapitalizeCached();
+        final displayKey = (shouldUpperCase || shouldAutoCapitalize) ? key.toUpperCase() : key;
+        
+        return _buildKeyWithHandler(displayKey, key, keyHeight);
+      },
+    );
+  }
+
+  // 🚀 PERFORMANCE: Key builder with separate display and press logic
+  Widget _buildKeyWithHandler(String displayKey, String pressKey, double keyHeight) {
+    // PERFORMANCE: Use cached text style if available
+    final textStyle =
+        _cachedTextStyles[keyHeight.toString()] ??
+        TextStyle(
+          fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
+          fontWeight: FontWeight.normal,
+          color: widget.textColor ?? KeyboardConstants.keyText,
+        );
+
+    return RepaintBoundary(
+      // PERFORMANCE: Prevent unnecessary repaints
+      child: SizedBox(
+        height: keyHeight,
+        child: Material(
+          color: widget.keyColor ?? KeyboardConstants.keyBackground,
+          borderRadius: _keyBorderRadius, // Use pre-computed constant
+          elevation: 1,
+          child: InkWell(
+            onTap: () => _onKeyPress(pressKey), // Press the original key
+            borderRadius: _keyBorderRadius, // Use pre-computed constant
+            splashColor: KeyboardConstants.keySplashWithAlpha,
+            highlightColor: KeyboardConstants.keyHighlightWithAlpha,
+            child: Container(
+              decoration: _cachedDecorations['key'], // Use cached decoration
+              child: Center(
+                child: Text(
+                  displayKey, // Display the capitalized version
+                  style: textStyle, // Use cached/pre-computed style
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ); // RepaintBoundary
+  }
+
+  // 🚀 PERFORMANCE: Static key builder (no state dependencies)
+  Widget _buildStaticKey(String key, double keyHeight) {
 
     // PERFORMANCE: Use cached text style if available
     final textStyle =
@@ -1035,7 +1141,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
           borderRadius: _keyBorderRadius, // Use pre-computed constant
           elevation: 1,
           child: InkWell(
-            onTap: () => _onKeyPress(displayKey),
+            onTap: () => _onKeyPress(key),
             borderRadius: _keyBorderRadius, // Use pre-computed constant
             splashColor: KeyboardConstants.keySplashWithAlpha,
             highlightColor: KeyboardConstants.keyHighlightWithAlpha,
@@ -1043,7 +1149,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
               decoration: _cachedDecorations['key'], // Use cached decoration
               child: Center(
                 child: Text(
-                  displayKey,
+                  key,
                   style: textStyle, // Use cached/pre-computed style
                 ),
               ),
@@ -1102,122 +1208,147 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     );
   }
 
+  // 🚀 PERFORMANCE: Optimized shift key with dual ValueListenableBuilder
   Widget _buildShiftKey(double keyHeight) {
-    final iconPath = _getShiftIconPath(_shiftState);
+    return ValueListenableBuilder<ShiftState>(
+      valueListenable: _shiftStateNotifier,
+      builder: (context, shiftState, child) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: _autoCapitalizeNotifier,
+          builder: (context, shouldAutoCapitalize, child) {
+            final iconPath = _getShiftIconPath(shiftState);
 
-    return SizedBox(
-      height: keyHeight,
-      child: Material(
-        color: KeyboardConstants.specialKeyDefault,
-        borderRadius: BorderRadius.circular(6),
-        elevation: 1,
-        child: InkWell(
-          onTap: _toggleCase,
-          borderRadius: BorderRadius.circular(6),
-          splashColor: KeyboardConstants.specialKeySplashWithAlpha,
-          highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: KeyboardConstants.specialKeyBorder,
-                width: 1,
+            return RepaintBoundary(
+              child: SizedBox(
+                height: keyHeight,
+                child: Material(
+                  color: KeyboardConstants.specialKeyDefault,
+                  borderRadius: BorderRadius.circular(6),
+                  elevation: 1,
+                  child: InkWell(
+                    onTap: _toggleCase,
+                    borderRadius: BorderRadius.circular(6),
+                    splashColor: KeyboardConstants.specialKeySplashWithAlpha,
+                    highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: KeyboardConstants.specialKeyBorder,
+                          width: 1,
+                        ),
+                      ),
+                      child: Center(
+                        child: SvgPicture.asset(
+                          iconPath,
+                          width: shiftState == ShiftState.capsLock ? 12 : 8,
+                          height: shiftState == ShiftState.capsLock ? 12 : 8,
+                          colorFilter:
+                              (shiftState == ShiftState.off && !shouldAutoCapitalize)
+                              ? ColorFilter.mode(Colors.black26, BlendMode.srcIn)
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            child: Center(
-              child: SvgPicture.asset(
-                iconPath,
-                width: _shiftState == ShiftState.capsLock ? 12 : 8,
-                height: _shiftState == ShiftState.capsLock ? 12 : 8,
-                colorFilter:
-                    (_shiftState == ShiftState.off &&
-                        !(_currentLanguage == 'en' && _shouldCapitalize()))
-                    ? ColorFilter.mode(Colors.black26, BlendMode.srcIn)
-                    : null,
-              ),
-            ),
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
+  // 🚀 PERFORMANCE: Optimized layout switcher key with ValueListenableBuilder
   Widget _buildLayoutSwitcherKey(double keyHeight) {
-    return SizedBox(
-      height: keyHeight,
-      child: Material(
-        color: KeyboardConstants.specialKeyDefault,
-        borderRadius: BorderRadius.circular(6),
-        elevation: 1,
-        child: InkWell(
-          onTap: _toggleCase,
-          borderRadius: BorderRadius.circular(6),
-          splashColor: KeyboardConstants.specialKeySplashWithAlpha,
-          highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
-          child: Container(
-            decoration: BoxDecoration(
+    return ValueListenableBuilder<int>(
+      valueListenable: _layoutPageNotifier,
+      builder: (context, currentLayoutPage, child) {
+        return RepaintBoundary(
+          child: SizedBox(
+            height: keyHeight,
+            child: Material(
+              color: KeyboardConstants.specialKeyDefault,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: KeyboardConstants.specialKeyBorder,
-                width: 1,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                _getLayoutPageText(),
-                style: TextStyle(
-                  fontSize: (keyHeight * 0.35).clamp(10.0, 16.0),
-                  color: KeyboardConstants.textOnLight,
-                  fontWeight: FontWeight.w500,
+              elevation: 1,
+              child: InkWell(
+                onTap: _switchLayoutPage, // Fixed: was calling _toggleCase instead!
+                borderRadius: BorderRadius.circular(6),
+                splashColor: KeyboardConstants.specialKeySplashWithAlpha,
+                highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: KeyboardConstants.specialKeyBorder,
+                      width: 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _getLayoutPageText(),
+                      style: TextStyle(
+                        fontSize: (keyHeight * 0.35).clamp(10.0, 16.0),
+                        color: KeyboardConstants.textOnLight,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
+  // 🚀 PERFORMANCE: Optimized conjunct key with ValueListenableBuilder
   Widget _buildConjunctKey(double keyHeight) {
-    return SizedBox(
-      height: keyHeight,
-      child: Material(
-        color: KeyboardConstants.keyBackground,
-        // _conjunctMode
-        //     ? _getEffectivePrimaryColor().withValues(alpha: 0.2) // Highlight when active
-        //     : KeyboardConstants.specialKeyDefault,
-        borderRadius: BorderRadius.circular(6),
-        elevation: 1,
-        child: InkWell(
-          onTap: _handleConjunctFormation,
-          borderRadius: BorderRadius.circular(6),
-          splashColor: KeyboardConstants.specialKeySplashWithAlpha,
-          highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
-          child: Container(
-            decoration: BoxDecoration(
+    return ValueListenableBuilder<bool>(
+      valueListenable: _conjunctModeNotifier,
+      builder: (context, isConjunctMode, child) {
+        return RepaintBoundary(
+          child: SizedBox(
+            height: keyHeight,
+            child: Material(
+              color: KeyboardConstants.keyBackground,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: _conjunctMode
-                    ? _getEffectivePrimaryColor()
-                    : KeyboardConstants.specialKeyBorder,
-                width: _conjunctMode ? 2 : 1,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                '+',
-                style: TextStyle(
-                  fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
-                  color: _conjunctMode
-                      ? _getEffectivePrimaryColor()
-                      : KeyboardConstants.textOnLight,
-                  fontWeight: _conjunctMode ? FontWeight.bold : FontWeight.w500,
+              elevation: 1,
+              child: InkWell(
+                onTap: _handleConjunctFormation,
+                borderRadius: BorderRadius.circular(6),
+                splashColor: KeyboardConstants.specialKeySplashWithAlpha,
+                highlightColor: KeyboardConstants.specialKeyHighlightWithAlpha,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: isConjunctMode
+                          ? _getEffectivePrimaryColor()
+                          : KeyboardConstants.specialKeyBorder,
+                      width: isConjunctMode ? 2 : 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '+',
+                      style: TextStyle(
+                        fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
+                        color: isConjunctMode
+                            ? _getEffectivePrimaryColor()
+                            : KeyboardConstants.textOnLight,
+                        fontWeight: isConjunctMode ? FontWeight.bold : FontWeight.w500,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1229,13 +1360,18 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     final viewPadding = mediaQuery.viewPadding;
     final isLandscape = screenSize.width > screenSize.height;
 
-    // 🎹 Calculate optimal keyboard height based on system keyboard proportions
-    final optimalKeyboardHeight = _calculateSystemProportionHeight(
-      screenSize: screenSize,
-      viewInsets: viewInsets,
-      viewPadding: viewPadding,
-      isLandscape: isLandscape,
-    );
+    // 🚀 PERFORMANCE: Cache keyboard height to avoid expensive recalculations
+    final heightCacheKey = '${screenSize.width}_${screenSize.height}_${viewInsets.bottom}_$isLandscape';
+    if (_cachedKeyboardHeight == null || _cachedControllerText != heightCacheKey) {
+      _cachedKeyboardHeight = _calculateSystemProportionHeight(
+        screenSize: screenSize,
+        viewInsets: viewInsets,
+        viewPadding: viewPadding,
+        isLandscape: isLandscape,
+      );
+      _cachedControllerText = heightCacheKey; // Reuse cache field for height key
+    }
+    final optimalKeyboardHeight = _cachedKeyboardHeight!;
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -1317,8 +1453,16 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   /// 🎹 Build keyboard layout that expands keys to fill available height
   /// Keys dynamically size themselves to optimally use the keyboard height
   Widget _buildExpandableKeyboardLayout(double totalKeyboardHeight) {
-    return _showNumericKeyboard
-        ? _buildExpandableNumericKeyboardLayout(totalKeyboardHeight)
-        : _buildExpandableAlphaKeyboardLayout(totalKeyboardHeight);
+    // 🚀 PERFORMANCE: Use ValueListenableBuilder for granular rebuilds
+    return ValueListenableBuilder<bool>(
+      valueListenable: _showNumericNotifier,
+      builder: (context, showNumeric, child) {
+        return RepaintBoundary(
+          child: showNumeric
+              ? _buildExpandableNumericKeyboardLayout(totalKeyboardHeight)
+              : _buildExpandableAlphaKeyboardLayout(totalKeyboardHeight),
+        );
+      },
+    );
   }
 }
