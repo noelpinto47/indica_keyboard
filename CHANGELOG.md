@@ -1,3 +1,15 @@
+## 1.1.0 - Performance Revolution & Auto-Capitalization Excellence
+
+* **🚀 MAJOR: Performance Architecture Overhaul** - Revolutionary ValueNotifier system for granular UI updates, eliminating unnecessary full widget rebuilds
+* **⚡ PERFORMANCE: Smart Keyboard Height System** - Dynamic height calculation using system keyboard proportions with 40% landscape limit and expandable key architecture
+* **🔤 FIXED: Auto-Capitalization Visual State** - Complete resolution of auto-capitalization display issues - keyboard now perfectly reflects capitalization state for all sentences
+* **🎯 ENHANCED: Hindi Layout Page Switching** - Fixed 1/4 → 2/4 page navigation with proper ValueNotifier integration
+* **💾 OPTIMIZED: Intelligent Caching System** - Advanced performance caching with proper cache invalidation for consistent UI updates
+* **🔧 PERFORMANCE: RepaintBoundary Optimization** - Strategic repaint boundaries and micro-batched updates for 60fps rendering
+* **📐 ENHANCED: Expandable Key System** - Keys dynamically resize to optimally fill available keyboard height with density-aware calculations
+* **🎨 IMPROVED: Visual Consistency** - Eliminated cache-related stale UI states with direct method calls for display logic
+* **🛡️ RELIABILITY: setState Strategy** - Hybrid approach using ValueNotifiers for granular updates and setState for full keyboard changes
+
 ## 1.0.1 - Enhanced Control & User Experience
 
 * **🔧 NEW: currentLanguage Parameter** - Added optional `currentLanguage` parameter for external language state synchronization

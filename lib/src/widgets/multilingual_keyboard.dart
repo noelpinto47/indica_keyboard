@@ -82,7 +82,6 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   late final ValueNotifier<bool> _conjunctModeNotifier;
   late final ValueNotifier<int> _layoutPageNotifier;
   late final ValueNotifier<bool> _showNumericNotifier;
-  late final ValueNotifier<bool> _autoCapitalizeNotifier;
   
   // 🚀 PERFORMANCE: Cached expensive computations
   bool? _cachedShouldCapitalize;
@@ -138,7 +137,6 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     _conjunctModeNotifier = ValueNotifier(_conjunctMode);
     _layoutPageNotifier = ValueNotifier(_currentLayoutPage);
     _showNumericNotifier = ValueNotifier(_showNumericKeyboard);
-    _autoCapitalizeNotifier = ValueNotifier(false);
 
     // Initialize native service for automatic high-performance processing
     IndicaNativeService.initialize();
@@ -236,14 +234,18 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     if (currentText == _cachedControllerText) return; // No change, skip
     
     _cachedControllerText = currentText;
+    
+    // Update auto-capitalization state (this may reset _justUsedAutoCapitalization)
+    _updateAutoCapitalizationState();
+    
     _cachedShouldCapitalize = null; // Invalidate cache
     
-    // Only rebuild if capitalization state actually changed
-    final newShouldCapitalize = _shouldCapitalizeCached();
-    if (newShouldCapitalize != (_cachedShouldCapitalize ?? false)) {
-      _cachedShouldCapitalize = newShouldCapitalize;
-      _autoCapitalizeNotifier.value = newShouldCapitalize; // Update auto-cap state
-      // No setState needed - ValueListenableBuilder will handle updates
+    // Only rebuild if capitalization state actually changed  
+    final oldValue = _cachedShouldCapitalize ?? false;
+    final newShouldCapitalize = _shouldCapitalize(); // Use direct call for UI updates
+    if (newShouldCapitalize != oldValue) {
+      // Use setState for auto-capitalization since it affects whole keyboard
+      setState(() {});
     }
   }
 
@@ -362,24 +364,32 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     return charCode >= 0x0915 && charCode <= 0x0939; // क(0x0915) to ह(0x0939)
   }
 
-  // Helper method to detect sentence boundaries
-  bool _isSentenceEnd(String text) {
+  // Helper method to detect if we're at the start of a new sentence
+  bool _isAtSentenceStart(String text) {
     if (text.isEmpty) return true; // Start of text
-
-    // Look for sentence-ending punctuation followed by space or at end
-    final trimmed = text.trimRight();
-    if (trimmed.isEmpty) return true;
-
-    final lastChar = trimmed[trimmed.length - 1];
-    return lastChar == '.' || lastChar == '!' || lastChar == '?';
+    
+    // Pattern 1: Text ends with sentence punctuation followed by one or more spaces
+    // This is the most common case: "Hello. " <- cursor is after space, ready for new sentence
+    final regex = RegExp(r'[.!?]\s+$');
+    if (regex.hasMatch(text)) {
+      return true;
+    }
+    
+    // Pattern 2: Text ends with sentence punctuation and cursor is right after it
+    // This handles: "Hello." <- cursor is right after period
+    if (text.isNotEmpty) {
+      final lastChar = text[text.length - 1];
+      if (lastChar == '.' || lastChar == '!' || lastChar == '?') {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   // Helper method to determine if next character should be capitalized
   bool _shouldCapitalize() {
     if (_currentLanguage != 'en' || !_shouldAutoCapitalize) return false;
-
-    // If we just used auto-capitalization, don't capitalize again until next sentence
-    if (_justUsedAutoCapitalization) return false;
 
     final controller = widget.textController;
     if (controller == null) return false; // No controller, no capitalization
@@ -388,7 +398,24 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     if (currentText.isEmpty) return true; // Start of text
 
     // Check if we're at the beginning of a sentence
-    return _isSentenceEnd(currentText);
+    final isAtSentenceStart = _isAtSentenceStart(currentText);
+    
+    // Return true if at sentence start and haven't used auto-cap for this sentence
+    return isAtSentenceStart && !_justUsedAutoCapitalization;
+  }
+  
+  // Helper method to update auto-capitalization state based on text changes
+  void _updateAutoCapitalizationState() {
+    if (_currentLanguage != 'en' || !_shouldAutoCapitalize) return;
+    
+    final currentText = widget.textController?.text ?? '';
+    final isAtSentenceStart = _isAtSentenceStart(currentText);
+    
+    // Reset the flag if we're at a new sentence boundary
+    if (isAtSentenceStart && _justUsedAutoCapitalization) {
+      _justUsedAutoCapitalization = false;
+      _cachedShouldCapitalize = null; // Invalidate cache
+    }
   }
 
   // Handle conjunct formation logic - toggle on/off
@@ -557,13 +584,16 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     }
 
     // Cache invalidation for auto-capitalization
+    bool shouldUpdateAutoCapState = false;
     if (shouldAutoCapitalize) {
       _justUsedAutoCapitalization = true;
       _cachedShouldCapitalize = null; // Invalidate cache
+      shouldUpdateAutoCapState = true;
     } else if (isLetter || key == '.' || key == '!' || key == '?') {
       if (_justUsedAutoCapitalization) {
         _justUsedAutoCapitalization = false;
         _cachedShouldCapitalize = null; // Invalidate cache
+        shouldUpdateAutoCapState = true;
       }
     }
 
@@ -577,6 +607,11 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     // 🚀 PERFORMANCE: Use ValueNotifier for shift key updates (avoids full setState)
     if (needsShiftUpdate) {
       _shiftStateNotifier.value = _shiftState;
+    }
+    
+    // Update auto-capitalization state with setState since it affects whole keyboard
+    if (shouldUpdateAutoCapState) {
+      setState(() {});
     }
   }
 
@@ -622,6 +657,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         _shiftStateNotifier.value = _shiftState; // Update ValueNotifier
       }
       _lastShiftTap = now;
+      // Update auto-capitalization UI when shift state changes
+      setState(() {});
     } else {
       // Handle layout page switching for non-English keyboards
       _switchLayoutPage();
@@ -1073,7 +1110,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       valueListenable: _shiftStateNotifier,
       builder: (context, shiftState, child) {
         final shouldUpperCase = shiftState != ShiftState.off && _currentLanguage == 'en';
-        final shouldAutoCapitalize = !shouldUpperCase && _shouldCapitalizeCached();
+        final shouldAutoCapitalize = !shouldUpperCase && _shouldCapitalize(); // Fixed: Use direct call for display
         final displayKey = (shouldUpperCase || shouldAutoCapitalize) ? key.toUpperCase() : key;
         
         return _buildKeyWithHandler(displayKey, key, keyHeight);
@@ -1208,15 +1245,13 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     );
   }
 
-  // 🚀 PERFORMANCE: Optimized shift key with dual ValueListenableBuilder
+  // 🚀 PERFORMANCE: Optimized shift key with ValueListenableBuilder
   Widget _buildShiftKey(double keyHeight) {
     return ValueListenableBuilder<ShiftState>(
       valueListenable: _shiftStateNotifier,
       builder: (context, shiftState, child) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: _autoCapitalizeNotifier,
-          builder: (context, shouldAutoCapitalize, child) {
-            final iconPath = _getShiftIconPath(shiftState);
+        final iconPath = _getShiftIconPath(shiftState);
+        final shouldAutoCapitalize = _shouldCapitalize(); // Fixed: Use direct call to avoid cache issues
 
             return RepaintBoundary(
               child: SizedBox(
@@ -1254,8 +1289,6 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                 ),
               ),
             );
-          },
-        );
       },
     );
   }
