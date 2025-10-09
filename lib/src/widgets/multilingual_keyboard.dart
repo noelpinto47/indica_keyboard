@@ -11,6 +11,14 @@ enum ShiftState {
   capsLock, // all letters capitalized
 }
 
+// Enum for device category detection for adaptive keyboard sizing
+enum _DeviceCategory {
+  tablet,    // Large screens (iPad, Android tablets)
+  foldable,  // Foldable phones or ultra-wide devices
+  compact,   // Small phones
+  standard,  // Regular smartphones
+}
+
 /// Main Indica keyboard widget based on MinimalExamKeyboard
 class IndicaKeyboard extends StatefulWidget {
   final List<String> supportedLanguages; // e.g., ['en', 'hi', 'mr']
@@ -1235,18 +1243,25 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
+    final mediaQuery = MediaQuery.of(context);
+    final screenSize = mediaQuery.size;
+    final viewInsets = mediaQuery.viewInsets;
+    final viewPadding = mediaQuery.viewPadding;
+    final devicePixelRatio = mediaQuery.devicePixelRatio;
     final isLandscape = screenSize.width > screenSize.height;
 
-    // Responsive keyboard height management
-    final maxKeyboardHeight = isLandscape
-        ? screenSize.height *
-              0.4 // 40% max in landscape
-        : screenSize.height * 0.5; // 50% max in portrait
+    // 🧩 Dynamic keyboard height calculation using real device metrics + density
+    final dynamicKeyboardHeight = _calculateDynamicKeyboardHeight(
+      screenSize: screenSize,
+      viewInsets: viewInsets,
+      viewPadding: viewPadding,
+      devicePixelRatio: devicePixelRatio,
+      isLandscape: isLandscape,
+    );
 
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight: widget.height ?? maxKeyboardHeight,
+        maxHeight: widget.height ?? dynamicKeyboardHeight,
         minHeight: 0,
       ),
       child: Container(
@@ -1254,9 +1269,158 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
           color: widget.backgroundColor ?? KeyboardConstants.keyboardBackground,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
         ),
-        child: _buildAdaptiveKeyboardLayout(widget.height ?? maxKeyboardHeight),
+        child: _buildAdaptiveKeyboardLayout(widget.height ?? dynamicKeyboardHeight),
       ),
     );
+  }
+
+  /// 🧩 Calculate dynamic keyboard height based on real device metrics
+  /// Adapts to different keyboards, safe areas, device orientations, and screen density
+  double _calculateDynamicKeyboardHeight({
+    required Size screenSize,
+    required EdgeInsets viewInsets,
+    required EdgeInsets viewPadding,
+    required double devicePixelRatio,
+    required bool isLandscape,
+  }) {
+    // 🎯 Calculate physical dimensions for consistent sizing across densities
+    final physicalScreenHeight = screenSize.height * devicePixelRatio;
+    final physicalScreenWidth = screenSize.width * devicePixelRatio;
+    
+    // Get available screen height (excluding system UI)
+    final availableHeight = screenSize.height - viewPadding.top - viewPadding.bottom;
+    
+    // Detect if system keyboard is currently visible
+    final systemKeyboardHeight = viewInsets.bottom;
+    final isSystemKeyboardVisible = systemKeyboardHeight > 50; // Threshold for detection
+    
+    // If system keyboard is visible, use its height as reference
+    if (isSystemKeyboardVisible) {
+      // Match system keyboard height but cap it for usability
+      return systemKeyboardHeight.clamp(200.0, availableHeight * 0.6);
+    }
+    
+    // 🔧 Calculate density-aware keyboard height based on physical dimensions
+    final densityAwareHeight = _calculateDensityAwareHeight(
+      physicalScreenHeight: physicalScreenHeight,
+      physicalScreenWidth: physicalScreenWidth,
+      logicalScreenHeight: screenSize.height,
+      devicePixelRatio: devicePixelRatio,
+      isLandscape: isLandscape,
+    );
+    
+    // Calculate natural keyboard height based on content needs (as fallback)
+    final baseKeyHeight = 45.0;
+    final totalRows = _showNumericKeyboard ? 5 : 5; // 4 main rows + 1 bottom row
+    final padding = 16.0;
+    final naturalHeight = (baseKeyHeight * totalRows) + padding;
+    
+    // Use density-aware height as primary, with adaptive fallback
+    final deviceCategory = _getDeviceCategory(screenSize);
+    final adaptiveHeight = _getAdaptiveHeight(
+      deviceCategory: deviceCategory,
+      availableHeight: availableHeight,
+      naturalHeight: naturalHeight,
+      isLandscape: isLandscape,
+    );
+    
+    // Choose the most appropriate height (density-aware takes priority)
+    final finalHeight = densityAwareHeight ?? adaptiveHeight;
+    
+    // Ensure minimum usability and maximum comfort
+    return finalHeight.clamp(200.0, availableHeight * 0.65);
+  }
+
+  /// 📐 Calculate density-aware keyboard height for consistent physical sizing
+  /// Ensures keyboard appears same physical size across different screen densities
+  double? _calculateDensityAwareHeight({
+    required double physicalScreenHeight,
+    required double physicalScreenWidth,
+    required double logicalScreenHeight,
+    required double devicePixelRatio,
+    required bool isLandscape,
+  }) {
+    // Target physical keyboard heights in pixels (industry standards)
+    const double targetPhysicalHeightPortrait = 1200.0; // ~40mm on most devices
+    const double targetPhysicalHeightLandscape = 1500.0; // ~50mm on most devices
+    
+    // Choose target based on orientation
+    final targetPhysicalHeight = isLandscape 
+        ? targetPhysicalHeightLandscape 
+        : targetPhysicalHeightPortrait;
+    
+    // Convert physical target back to logical pixels for this device
+    final logicalKeyboardHeight = targetPhysicalHeight / devicePixelRatio;
+    
+    // Ensure it's reasonable relative to screen size (safety check)
+    final maxAllowedHeight = logicalScreenHeight * 0.65;
+    final minAllowedHeight = 200.0;
+    
+    if (logicalKeyboardHeight > maxAllowedHeight || logicalKeyboardHeight < minAllowedHeight) {
+      // Fallback to percentage-based if physical calculation is unreasonable
+      return null;
+    }
+    
+    return logicalKeyboardHeight;
+  }
+
+  /// Categorize device type for better height adaptation
+  _DeviceCategory _getDeviceCategory(Size screenSize) {
+    final shortestSide = screenSize.shortestSide;
+    final longestSide = screenSize.longestSide;
+    final aspectRatio = longestSide / shortestSide;
+    
+    // Tablet detection
+    if (shortestSide >= 600) {
+      return _DeviceCategory.tablet;
+    }
+    
+    // Foldable/wide phone detection
+    if (aspectRatio > 2.1) {
+      return _DeviceCategory.foldable;
+    }
+    
+    // Compact phone
+    if (shortestSide < 360) {
+      return _DeviceCategory.compact;
+    }
+    
+    // Standard phone
+    return _DeviceCategory.standard;
+  }
+
+  /// Get adaptive height based on device category and orientation
+  double _getAdaptiveHeight({
+    required _DeviceCategory deviceCategory,
+    required double availableHeight,
+    required double naturalHeight,
+    required bool isLandscape,
+  }) {
+    switch (deviceCategory) {
+      case _DeviceCategory.tablet:
+        // Tablets: Smaller relative height due to larger screens
+        return isLandscape 
+            ? availableHeight * 0.35  // More conservative in landscape
+            : availableHeight * 0.30; // Smaller in portrait
+            
+      case _DeviceCategory.foldable:
+        // Foldables: Optimize for unique aspect ratios
+        return isLandscape
+            ? availableHeight * 0.50  // Utilize available space
+            : availableHeight * 0.38; // Standard in portrait
+            
+      case _DeviceCategory.compact:
+        // Compact phones: Prioritize content space
+        return isLandscape
+            ? availableHeight * 0.60  // More space needed in tight landscape
+            : availableHeight * 0.42; // Slightly more in portrait
+            
+      case _DeviceCategory.standard:
+        // Standard phones: Industry standard heights
+        return isLandscape
+            ? availableHeight * 0.55  // Standard landscape
+            : availableHeight * 0.40; // Standard portrait
+    }
   }
 
   Widget _buildAdaptiveKeyboardLayout(double availableHeight) {

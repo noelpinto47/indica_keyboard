@@ -1,6 +1,6 @@
 name: indica_keyboard
 description: "High-performance multilingual keyboard for Flutter supporting English, Hindi, and Marathi with native optimization."
-version: 1.1.0
+version: 1.0.1
 homepage: https://github.com/noelpinto47/indica_keyboard
 repository: https://github.com/noelpinto47/indica_keyboard
 issue_tracker: https://github.com/noelpinto47/indica_keyboard/issues
