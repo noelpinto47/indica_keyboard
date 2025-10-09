@@ -11,13 +11,7 @@ enum ShiftState {
   capsLock, // all letters capitalized
 }
 
-// Enum for device category detection for adaptive keyboard sizing
-enum _DeviceCategory {
-  tablet,    // Large screens (iPad, Android tablets)
-  foldable,  // Foldable phones or ultra-wide devices
-  compact,   // Small phones
-  standard,  // Regular smartphones
-}
+
 
 /// Main Indica keyboard widget based on MinimalExamKeyboard
 class IndicaKeyboard extends StatefulWidget {
@@ -764,34 +758,27 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     widget.onDialogStateChanged?.call(false);
   }
 
-  Widget _buildAdaptiveAlphaKeyboardLayout(double availableHeight) {
+  /// 🎹 Build expandable alpha keyboard that fills the given height optimally
+  Widget _buildExpandableAlphaKeyboardLayout(double totalKeyboardHeight) {
     final layout = _getCurrentLayout();
 
-    // Calculate adaptive key height dynamically
+    // 🎯 Calculate key height to perfectly fill available space
     const double padding = 8.0; // Total padding from container
-    final int layoutRows =
-        layout.length; // Dynamic based on layout array length
+    final int layoutRows = layout.length; // Dynamic based on layout array length
     final int totalRows = layoutRows + 1; // Layout rows + 1 unified bottom row
 
-    // Set natural key heights based on screen orientation
-    const double preferredKeyHeight = 45.0; // Comfortable key size
-    const double minKeyHeight = 30.0; // Minimum usability
-    const double maxKeyHeight = 50.0; // Maximum comfort
-
-    // Calculate if we need to compress keys to fit in available space
-    final double naturalKeyboardHeight =
-        (preferredKeyHeight * totalRows) + padding;
-    final double adaptiveKeyHeight = naturalKeyboardHeight <= availableHeight
-        ? preferredKeyHeight // Use natural size if it fits
-        : ((availableHeight - padding) / totalRows).clamp(
-            minKeyHeight,
-            maxKeyHeight,
-          ); // Compress if needed
+    // 🔧 Keys expand to fill the exact keyboard height (no waste space)
+    final double optimalKeyHeight = (totalKeyboardHeight - padding) / totalRows;
+    
+    // Safety clamps to ensure usability (but prioritize filling space)
+    const double minKeyHeight = 25.0; // Absolute minimum for tapping
+    const double maxKeyHeight = 60.0; // Maximum for comfort
+    final double expandedKeyHeight = optimalKeyHeight.clamp(minKeyHeight, maxKeyHeight);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Build all layout rows dynamically
+        // Build all layout rows dynamically - keys expand to fill space
         ...layout.asMap().entries.map((entry) {
           final int index = entry.key;
           final List<String> row = entry.value;
@@ -800,46 +787,39 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
           return Flexible(
             child: isLastRow
                 // Last row uses buildBottomRow for shift and backspace functionality
-                ? _buildBottomRow(row, adaptiveKeyHeight)
+                ? _buildBottomRow(row, expandedKeyHeight)
                 // All other rows use regular buildKeyRow
-                : _buildKeyRow(row, adaptiveKeyHeight),
+                : _buildKeyRow(row, expandedKeyHeight),
           );
         }),
 
         // Unified bottom row (spacebar, etc.)
-        Flexible(child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight)),
+        Flexible(child: _buildAdaptiveUnifiedBottomRow(expandedKeyHeight)),
       ],
     );
   }
 
-  Widget _buildAdaptiveNumericKeyboardLayout(double availableHeight) {
+  /// 🎹 Build expandable numeric keyboard that fills the given height optimally
+  Widget _buildExpandableNumericKeyboardLayout(double totalKeyboardHeight) {
     final layout = KeyboardLayout.getNumericLayout();
 
-    // Calculate adaptive key height for numeric layout dynamically
+    // 🎯 Calculate key height to perfectly fill available space
     const double padding = 8.0; // Total padding from container
-    final int layoutRows =
-        layout.length; // Dynamic based on layout array length
+    final int layoutRows = layout.length; // Dynamic based on layout array length
     final int totalRows = layoutRows + 1; // Layout rows + 1 unified bottom row
 
-    // Set natural key heights based on screen orientation
-    const double preferredKeyHeight = 45.0; // Comfortable key size
-    const double minKeyHeight = 30.0; // Minimum usability
-    const double maxKeyHeight = 50.0; // Maximum comfort
-
-    // Calculate if we need to compress keys to fit in available space
-    final double naturalKeyboardHeight =
-        (preferredKeyHeight * totalRows) + padding;
-    final double adaptiveKeyHeight = naturalKeyboardHeight <= availableHeight
-        ? preferredKeyHeight // Use natural size if it fits
-        : ((availableHeight - padding) / totalRows).clamp(
-            minKeyHeight,
-            maxKeyHeight,
-          ); // Compress if needed
+    // 🔧 Keys expand to fill the exact keyboard height (no waste space)
+    final double optimalKeyHeight = (totalKeyboardHeight - padding) / totalRows;
+    
+    // Safety clamps to ensure usability (but prioritize filling space)
+    const double minKeyHeight = 25.0; // Absolute minimum for tapping
+    const double maxKeyHeight = 60.0; // Maximum for comfort
+    final double expandedKeyHeight = optimalKeyHeight.clamp(minKeyHeight, maxKeyHeight);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Build all layout rows dynamically
+        // Build all layout rows dynamically - keys expand to fill space
         ...layout.asMap().entries.map((entry) {
           final int index = entry.key;
           final List<String> row = entry.value;
@@ -848,14 +828,14 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
           return Flexible(
             child: isLastRow
                 // Last row uses buildNumericBottomRow for special handling
-                ? _buildNumericBottomRow(row, adaptiveKeyHeight)
+                ? _buildNumericBottomRow(row, expandedKeyHeight)
                 // All other rows use regular buildKeyRow
-                : _buildKeyRow(row, adaptiveKeyHeight),
+                : _buildKeyRow(row, expandedKeyHeight),
           );
         }),
 
         // Unified bottom row (spacebar, etc.)
-        Flexible(child: _buildAdaptiveUnifiedBottomRow(adaptiveKeyHeight)),
+        Flexible(child: _buildAdaptiveUnifiedBottomRow(expandedKeyHeight)),
       ],
     );
   }
@@ -1247,21 +1227,19 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     final screenSize = mediaQuery.size;
     final viewInsets = mediaQuery.viewInsets;
     final viewPadding = mediaQuery.viewPadding;
-    final devicePixelRatio = mediaQuery.devicePixelRatio;
     final isLandscape = screenSize.width > screenSize.height;
 
-    // 🧩 Dynamic keyboard height calculation using real device metrics + density
-    final dynamicKeyboardHeight = _calculateDynamicKeyboardHeight(
+    // 🎹 Calculate optimal keyboard height based on system keyboard proportions
+    final optimalKeyboardHeight = _calculateSystemProportionHeight(
       screenSize: screenSize,
       viewInsets: viewInsets,
       viewPadding: viewPadding,
-      devicePixelRatio: devicePixelRatio,
       isLandscape: isLandscape,
     );
 
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight: widget.height ?? dynamicKeyboardHeight,
+        maxHeight: widget.height ?? optimalKeyboardHeight,
         minHeight: 0,
       ),
       child: Container(
@@ -1269,163 +1247,78 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
           color: widget.backgroundColor ?? KeyboardConstants.keyboardBackground,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
         ),
-        child: _buildAdaptiveKeyboardLayout(widget.height ?? dynamicKeyboardHeight),
+        child: _buildExpandableKeyboardLayout(widget.height ?? optimalKeyboardHeight),
       ),
     );
   }
 
-  /// 🧩 Calculate dynamic keyboard height based on real device metrics
-  /// Adapts to different keyboards, safe areas, device orientations, and screen density
-  double _calculateDynamicKeyboardHeight({
+  /// 🎹 Calculate keyboard height using system keyboard proportions
+  /// Detects actual system keyboard when visible, otherwise uses optimal proportions
+  double _calculateSystemProportionHeight({
     required Size screenSize,
     required EdgeInsets viewInsets,
     required EdgeInsets viewPadding,
-    required double devicePixelRatio,
     required bool isLandscape,
   }) {
-    // 🎯 Calculate physical dimensions for consistent sizing across densities
-    final physicalScreenHeight = screenSize.height * devicePixelRatio;
-    final physicalScreenWidth = screenSize.width * devicePixelRatio;
-    
     // Get available screen height (excluding system UI)
     final availableHeight = screenSize.height - viewPadding.top - viewPadding.bottom;
     
-    // Detect if system keyboard is currently visible
+    // 🎯 Priority 1: Use actual system keyboard height if visible
     final systemKeyboardHeight = viewInsets.bottom;
-    final isSystemKeyboardVisible = systemKeyboardHeight > 50; // Threshold for detection
+    final isSystemKeyboardVisible = systemKeyboardHeight > 50;
     
-    // If system keyboard is visible, use its height as reference
     if (isSystemKeyboardVisible) {
-      // Match system keyboard height but cap it for usability
-      return systemKeyboardHeight.clamp(200.0, availableHeight * 0.6);
+      // Use system keyboard height as the gold standard for proportions
+      return systemKeyboardHeight.clamp(200.0, availableHeight * 0.7);
     }
     
-    // 🔧 Calculate density-aware keyboard height based on physical dimensions
-    final densityAwareHeight = _calculateDensityAwareHeight(
-      physicalScreenHeight: physicalScreenHeight,
-      physicalScreenWidth: physicalScreenWidth,
-      logicalScreenHeight: screenSize.height,
-      devicePixelRatio: devicePixelRatio,
-      isLandscape: isLandscape,
-    );
-    
-    // Calculate natural keyboard height based on content needs (as fallback)
-    final baseKeyHeight = 45.0;
-    final totalRows = _showNumericKeyboard ? 5 : 5; // 4 main rows + 1 bottom row
-    final padding = 16.0;
-    final naturalHeight = (baseKeyHeight * totalRows) + padding;
-    
-    // Use density-aware height as primary, with adaptive fallback
-    final deviceCategory = _getDeviceCategory(screenSize);
-    final adaptiveHeight = _getAdaptiveHeight(
-      deviceCategory: deviceCategory,
+    // 🎯 Priority 2: Use platform-specific optimal proportions based on research
+    return _getOptimalKeyboardProportion(
       availableHeight: availableHeight,
-      naturalHeight: naturalHeight,
+      screenSize: screenSize,
       isLandscape: isLandscape,
     );
-    
-    // Choose the most appropriate height (density-aware takes priority)
-    final finalHeight = densityAwareHeight ?? adaptiveHeight;
-    
-    // Ensure minimum usability and maximum comfort
-    return finalHeight.clamp(200.0, availableHeight * 0.65);
   }
 
-  /// 📐 Calculate density-aware keyboard height for consistent physical sizing
-  /// Ensures keyboard appears same physical size across different screen densities
-  double? _calculateDensityAwareHeight({
-    required double physicalScreenHeight,
-    required double physicalScreenWidth,
-    required double logicalScreenHeight,
-    required double devicePixelRatio,
-    required bool isLandscape,
-  }) {
-    // Target physical keyboard heights in pixels (industry standards)
-    const double targetPhysicalHeightPortrait = 1200.0; // ~40mm on most devices
-    const double targetPhysicalHeightLandscape = 1500.0; // ~50mm on most devices
-    
-    // Choose target based on orientation
-    final targetPhysicalHeight = isLandscape 
-        ? targetPhysicalHeightLandscape 
-        : targetPhysicalHeightPortrait;
-    
-    // Convert physical target back to logical pixels for this device
-    final logicalKeyboardHeight = targetPhysicalHeight / devicePixelRatio;
-    
-    // Ensure it's reasonable relative to screen size (safety check)
-    final maxAllowedHeight = logicalScreenHeight * 0.65;
-    final minAllowedHeight = 200.0;
-    
-    if (logicalKeyboardHeight > maxAllowedHeight || logicalKeyboardHeight < minAllowedHeight) {
-      // Fallback to percentage-based if physical calculation is unreasonable
-      return null;
-    }
-    
-    return logicalKeyboardHeight;
-  }
-
-  /// Categorize device type for better height adaptation
-  _DeviceCategory _getDeviceCategory(Size screenSize) {
-    final shortestSide = screenSize.shortestSide;
-    final longestSide = screenSize.longestSide;
-    final aspectRatio = longestSide / shortestSide;
-    
-    // Tablet detection
-    if (shortestSide >= 600) {
-      return _DeviceCategory.tablet;
-    }
-    
-    // Foldable/wide phone detection
-    if (aspectRatio > 2.1) {
-      return _DeviceCategory.foldable;
-    }
-    
-    // Compact phone
-    if (shortestSide < 360) {
-      return _DeviceCategory.compact;
-    }
-    
-    // Standard phone
-    return _DeviceCategory.standard;
-  }
-
-  /// Get adaptive height based on device category and orientation
-  double _getAdaptiveHeight({
-    required _DeviceCategory deviceCategory,
+  /// 🎹 Get optimal keyboard proportion based on system keyboard research
+  /// Uses iOS/Android system keyboard proportions as the gold standard
+  double _getOptimalKeyboardProportion({
     required double availableHeight,
-    required double naturalHeight,
+    required Size screenSize,
     required bool isLandscape,
   }) {
-    switch (deviceCategory) {
-      case _DeviceCategory.tablet:
-        // Tablets: Smaller relative height due to larger screens
-        return isLandscape 
-            ? availableHeight * 0.35  // More conservative in landscape
-            : availableHeight * 0.30; // Smaller in portrait
-            
-      case _DeviceCategory.foldable:
-        // Foldables: Optimize for unique aspect ratios
-        return isLandscape
-            ? availableHeight * 0.50  // Utilize available space
-            : availableHeight * 0.38; // Standard in portrait
-            
-      case _DeviceCategory.compact:
-        // Compact phones: Prioritize content space
-        return isLandscape
-            ? availableHeight * 0.60  // More space needed in tight landscape
-            : availableHeight * 0.42; // Slightly more in portrait
-            
-      case _DeviceCategory.standard:
-        // Standard phones: Industry standard heights
-        return isLandscape
-            ? availableHeight * 0.55  // Standard landscape
-            : availableHeight * 0.40; // Standard portrait
+    // Research-based system keyboard proportions
+    // iOS: ~35-40% portrait, ~50-55% landscape
+    // Android: ~38-42% portrait, ~52-58% landscape
+    
+    // Detect device type for optimal proportions
+    final shortestSide = screenSize.shortestSide;
+    final isTablet = shortestSide >= 600;
+    final isCompact = shortestSide < 360;
+    
+    if (isTablet) {
+      // Tablets: Smaller proportions due to larger screens
+      return isLandscape 
+          ? availableHeight * 0.35  // 35% in landscape
+          : availableHeight * 0.30; // 30% in portrait
+    } else if (isCompact) {
+      // Compact phones: Standard proportions but capped
+      return isLandscape
+          ? availableHeight * 0.40  // 40% max in landscape as requested
+          : availableHeight * 0.38; // 38% in portrait
+    } else {
+      // Standard phones: Use optimal system proportions
+      return isLandscape
+          ? availableHeight * 0.40  // 40% max in landscape as requested
+          : availableHeight * 0.38; // 38% in portrait (optimal for content)
     }
   }
 
-  Widget _buildAdaptiveKeyboardLayout(double availableHeight) {
+  /// 🎹 Build keyboard layout that expands keys to fill available height
+  /// Keys dynamically size themselves to optimally use the keyboard height
+  Widget _buildExpandableKeyboardLayout(double totalKeyboardHeight) {
     return _showNumericKeyboard
-        ? _buildAdaptiveNumericKeyboardLayout(availableHeight)
-        : _buildAdaptiveAlphaKeyboardLayout(availableHeight);
+        ? _buildExpandableNumericKeyboardLayout(totalKeyboardHeight)
+        : _buildExpandableAlphaKeyboardLayout(totalKeyboardHeight);
   }
 }
