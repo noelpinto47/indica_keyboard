@@ -87,6 +87,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   bool? _cachedShouldCapitalize;
   String? _cachedControllerText;
   double? _cachedKeyboardHeight;
+  bool _previousShouldCapitalize = false; // Track previous state for change detection
 
   // Conjunct consonant formation state
   bool _conjunctMode = false; // Whether conjunct formation is active
@@ -152,6 +153,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     // 🚀 PERFORMANCE: Optimized text controller listener with debouncing
     if (widget.textController != null) {
       widget.textController!.addListener(_onTextControllerChange);
+      // Initialize previous state based on current text
+      _previousShouldCapitalize = _shouldCapitalize();
     }
 
     _loadKeyboardLayouts();
@@ -180,6 +183,11 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
         _pendingConsonant = null;
         _conjunctModeNotifier.value = false;
       }
+      
+      // Reset auto-capitalization state when switching languages
+      _justUsedAutoCapitalization = false;
+      _cachedShouldCapitalize = null;
+      _previousShouldCapitalize = _shouldCapitalize(); // Recalculate for new language
       
       // Update ValueNotifiers for UI consistency
       _layoutPageNotifier.value = _currentLayoutPage;
@@ -264,16 +272,28 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     
     _cachedControllerText = currentText;
     
+    // Use the cached previous state (calculated before text changed)
+    final oldShouldCapitalize = _previousShouldCapitalize;
+    
     // Update auto-capitalization state (this may reset _justUsedAutoCapitalization)
     _updateAutoCapitalizationState();
     
     _cachedShouldCapitalize = null; // Invalidate cache
     
-    // Only rebuild if capitalization state actually changed  
-    final oldValue = _cachedShouldCapitalize ?? false;
-    final newShouldCapitalize = _shouldCapitalize(); // Use direct call for UI updates
-    if (newShouldCapitalize != oldValue) {
-      // Use setState for auto-capitalization since it affects whole keyboard
+    // Check capitalization state AFTER update
+    final newShouldCapitalize = _shouldCapitalize();
+    
+    // Cache the new state for next time
+    _previousShouldCapitalize = newShouldCapitalize;
+    
+    // If we transitioned from should-capitalize to shouldn't (letter was just capitalized)
+    // set the flag to prevent re-capitalizing the next letter
+    if (oldShouldCapitalize && !newShouldCapitalize) {
+      _justUsedAutoCapitalization = true;
+    }
+    
+    // Rebuild if capitalization state changed (e.g., typed period, or typed after period)
+    if (newShouldCapitalize != oldShouldCapitalize) {
       setState(() {});
     }
   }
@@ -613,16 +633,15 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     }
 
     // Cache invalidation for auto-capitalization
-    bool shouldUpdateAutoCapState = false;
+    // Note: Don't set _justUsedAutoCapitalization here - let _onTextControllerChange detect the transition
     if (shouldAutoCapitalize) {
-      _justUsedAutoCapitalization = true;
       _cachedShouldCapitalize = null; // Invalidate cache
-      shouldUpdateAutoCapState = true;
-    } else if (isLetter || key == '.' || key == '!' || key == '?') {
-      if (_justUsedAutoCapitalization) {
+    } else {
+      // Reset auto-capitalization for any key press except backspace and newline
+      // This ensures keyboard display matches output when typing any character after period
+      if (_justUsedAutoCapitalization && key != '⌫' && key != '\n') {
         _justUsedAutoCapitalization = false;
         _cachedShouldCapitalize = null; // Invalidate cache
-        shouldUpdateAutoCapState = true;
       }
     }
 
@@ -638,10 +657,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
       _shiftStateNotifier.value = _shiftState;
     }
     
-    // Update auto-capitalization state with setState since it affects whole keyboard
-    if (shouldUpdateAutoCapState) {
-      setState(() {});
-    }
+    // Note: Auto-capitalization state updates are now handled by _onTextControllerChange
+    // which detects state transitions and calls setState() automatically
   }
 
   void _onBackspace() {
@@ -722,6 +739,11 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
           _pendingConsonant = null;
           _conjunctModeNotifier.value = false;
         }
+        
+        // Reset auto-capitalization state when switching languages
+        _justUsedAutoCapitalization = false;
+        _cachedShouldCapitalize = null;
+        _previousShouldCapitalize = _shouldCapitalize(); // Recalculate for new language
       });
       widget.onLanguageChanged?.call(language);
     }
