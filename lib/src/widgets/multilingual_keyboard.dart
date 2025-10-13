@@ -88,6 +88,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   String? _cachedControllerText;
   double? _cachedKeyboardHeight;
   bool _previousShouldCapitalize = false; // Track previous state for change detection
+  
+  // 🚀 PERFORMANCE: Pre-compiled regex for sentence detection (avoid allocation in hot path)
+  static final _sentenceEndRegex = RegExp(r'[.!?]\s+$');
 
   // Conjunct consonant formation state
   bool _conjunctMode = false; // Whether conjunct formation is active
@@ -419,8 +422,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     
     // Pattern 1: Text ends with sentence punctuation followed by one or more spaces
     // This is the most common case: "Hello. " <- cursor is after space, ready for new sentence
-    final regex = RegExp(r'[.!?]\s+$');
-    if (regex.hasMatch(text)) {
+    if (_sentenceEndRegex.hasMatch(text)) {
       return true;
     }
     
