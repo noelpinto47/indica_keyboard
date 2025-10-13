@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'indica_keyboard'
-  s.version          = '1.2.0'
+  s.version          = '1.2.1'
   s.summary          = 'High-performance multilingual keyboard with native iOS optimization'
   s.description      = <<-DESC
 IndicaKeyboard provides native iOS text processing for Hindi, Marathi, and English languages.
