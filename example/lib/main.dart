@@ -53,6 +53,14 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine font family based on current language
+    final String? fontFamily = (_currentLanguage == 'hi' || _currentLanguage == 'mr') 
+        ? 'NotoSansDevanagari' 
+        : null;
+    final String? fontPackage = (_currentLanguage == 'hi' || _currentLanguage == 'mr') 
+        ? 'indica_keyboard' 
+        : null;
+
     return SafeArea(
       top: false,
       left: false,
@@ -89,7 +97,12 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
                 children: [
                   Text(
                     'Current Language: ${_getLanguageName(_currentLanguage)}',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      fontFamily: fontFamily,
+                      package: fontPackage,
+                    ),
                   ),
                   const SizedBox(height: 16),
 
@@ -105,7 +118,11 @@ class _KeyboardDemoPageState extends State<KeyboardDemoPage> {
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.all(16),
                       ),
-                      style: const TextStyle(fontSize: 18),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontFamily: fontFamily,
+                        package: fontPackage,
+                      ),
                       keyboardType: TextInputType.none, // Disable system keyboard
                     ),
                   ),

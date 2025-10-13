@@ -1,3 +1,12 @@
+## 1.2.0 - Enhanced Devanagari Typography
+
+* **✨ NEW: Noto Sans Devanagari Font** - Integrated high-quality Noto Sans Devanagari variable font for superior Hindi and Marathi text rendering
+* **🎨 ENHANCED: Typography System** - Language-aware font rendering with automatic font family selection based on active keyboard language
+* **📱 IMPROVED: Cross-Platform Font Support** - Font assets properly integrated into Flutter, Android (res/font), and iOS (Assets) for consistent rendering
+* **🌐 ENHANCED: Visual Quality** - Better readability and authentic Devanagari script appearance with Google's professionally designed typeface
+* **🔧 ENHANCED: Example App** - Updated demo app to showcase custom font rendering in both keyboard and text output
+* **📝 IMPROVED: User Experience** - Seamless font switching between English and Devanagari scripts for optimal readability
+
 ## 1.1.1 - Critical Conjunct Mode Fix
 
 * **🔧 FIXED: Conjunct Mode Deactivation** - Resolved issue where conjunct formation button (+) in Hindi/Marathi keyboards would activate but not visually deactivate

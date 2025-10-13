@@ -15,6 +15,7 @@ A **high-performance multilingual keyboard plugin** for Flutter with **native An
 ## 🌐 Language Features
 
 - **Multi-language Support**: English, Hindi (Devanagari), and Marathi (Devanagari)
+- **Custom Devanagari Font**: Beautiful Noto Sans Devanagari font for authentic and readable script rendering
 - **Advanced Conjunct Formation**: Intelligent '+' button for complex Devanagari conjuncts  
 - **Smart Text Input**: Context-aware vowel attachments and cursor processing
 - **Dynamic Layouts**: Adaptive keyboard layouts with multiple pages for complex scripts
@@ -34,7 +35,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  indica_keyboard: ^1.1.1
+  indica_keyboard: ^1.2.0
 ```
 
 ## Quick Start

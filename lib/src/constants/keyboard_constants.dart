@@ -83,6 +83,9 @@ class KeyboardConstants {
   static const double smallFontSize = 14.0;
   static const double largeFontSize = 20.0;
   
+  // Font families
+  static const String devanagariFont = 'NotoSansDevanagari'; // For Hindi and Marathi
+  
   // Animation durations
   static const Duration shortAnimation = Duration(milliseconds: 150);
   static const Duration mediumAnimation = Duration(milliseconds: 300);

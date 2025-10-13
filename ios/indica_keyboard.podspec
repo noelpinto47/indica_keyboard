@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'indica_keyboard'
-  s.version          = '1.0.1'
+  s.version          = '1.2.0'
   s.summary          = 'High-performance multilingual keyboard with native iOS optimization'
   s.description      = <<-DESC
 IndicaKeyboard provides native iOS text processing for Hindi, Marathi, and English languages.
@@ -29,8 +29,11 @@ optimization with 3-5x speed improvements over pure Dart implementations.
   }
   s.swift_version = '5.0'
 
-  # Enable privacy manifest for App Store compliance
-  s.resource_bundles = {'indica_keyboard_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
+  # Enable privacy manifest for App Store compliance and include font assets
+  s.resource_bundles = {
+    'indica_keyboard_privacy' => ['Resources/PrivacyInfo.xcprivacy'],
+    'indica_keyboard_assets' => ['Assets/*.ttf']
+  }
   
   # Frameworks required for performance optimizations
   s.frameworks = 'Foundation', 'UIKit'

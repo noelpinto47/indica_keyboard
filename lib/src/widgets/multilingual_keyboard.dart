@@ -212,6 +212,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
   void _precomputeStyles() {
     // Pre-compute common text styles to avoid repeated calculations
+    // Note: These are generic styles; actual font family is determined at runtime based on language
     for (double height in [30.0, 35.0, 40.0, 45.0, 50.0]) {
       final fontSize = (height * 0.4).clamp(12.0, 18.0);
       _cachedTextStyles[height.toString()] = TextStyle(
@@ -230,6 +231,27 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     _cachedDecorations['special'] = BoxDecoration(
       borderRadius: _keyBorderRadius,
       border: Border.all(color: KeyboardConstants.specialKeyBorder, width: 1),
+    );
+  }
+
+  /// Helper method to get the appropriate font family based on current language
+  String? _getFontFamily() {
+    // Use Devanagari font for Hindi and Marathi
+    if (_currentLanguage == 'hi' || _currentLanguage == 'mr') {
+      return KeyboardConstants.devanagariFont;
+    }
+    // Return null for English to use system default
+    return null;
+  }
+
+  /// Helper method to create TextStyle with appropriate font for current language
+  TextStyle _getTextStyleForLanguage(double fontSize, {FontWeight? fontWeight, Color? color}) {
+    return TextStyle(
+      fontSize: fontSize,
+      fontWeight: fontWeight ?? FontWeight.normal,
+      color: color ?? widget.textColor ?? KeyboardConstants.keyText,
+      fontFamily: _getFontFamily(),
+      package: _getFontFamily() != null ? 'indica_keyboard' : null,
     );
   }
 
@@ -825,6 +847,12 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                                       color: isSelected
                                           ? _getEffectivePrimaryColor()
                                           : KeyboardConstants.textPrimary,
+                                      fontFamily: (lang == 'hi' || lang == 'mr') 
+                                          ? KeyboardConstants.devanagariFont 
+                                          : null,
+                                      package: (lang == 'hi' || lang == 'mr') 
+                                          ? 'indica_keyboard' 
+                                          : null,
                                     ),
                                   ),
                                 ),
@@ -1053,11 +1081,11 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                 child: Stack(
                   children: [
                     // Centered space symbol
-                    const Center(
+                    Center(
                       child: Text(
                         '␣',
-                        style: TextStyle(
-                          fontSize: 18,
+                        style: _getTextStyleForLanguage(
+                          18,
                           color: KeyboardConstants.keyText,
                         ),
                       ),
@@ -1071,11 +1099,10 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
                         child: Center(
                           child: Text(
                             _getLanguageDisplayCode(_currentLanguage),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: KeyboardConstants.textGrey,
+                            style: _getTextStyleForLanguage(
+                              11,
                               fontWeight: FontWeight.w400,
-                              letterSpacing: 0.3,
+                              color: KeyboardConstants.textGrey,
                             ),
                           ),
                         ),
@@ -1134,14 +1161,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
 
   // 🚀 PERFORMANCE: Key builder with separate display and press logic
   Widget _buildKeyWithHandler(String displayKey, String pressKey, double keyHeight) {
-    // PERFORMANCE: Use cached text style if available
-    final textStyle =
-        _cachedTextStyles[keyHeight.toString()] ??
-        TextStyle(
-          fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
-          fontWeight: FontWeight.normal,
-          color: widget.textColor ?? KeyboardConstants.keyText,
-        );
+    // PERFORMANCE: Use language-aware text style with proper font
+    final fontSize = (keyHeight * 0.4).clamp(12.0, 18.0);
+    final textStyle = _getTextStyleForLanguage(fontSize);
 
     return RepaintBoundary(
       // PERFORMANCE: Prevent unnecessary repaints
@@ -1174,14 +1196,9 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
   // 🚀 PERFORMANCE: Static key builder (no state dependencies)
   Widget _buildStaticKey(String key, double keyHeight) {
 
-    // PERFORMANCE: Use cached text style if available
-    final textStyle =
-        _cachedTextStyles[keyHeight.toString()] ??
-        TextStyle(
-          fontSize: (keyHeight * 0.4).clamp(12.0, 18.0),
-          fontWeight: FontWeight.normal,
-          color: widget.textColor ?? KeyboardConstants.keyText,
-        );
+    // PERFORMANCE: Use language-aware text style with proper font
+    final fontSize = (keyHeight * 0.4).clamp(12.0, 18.0);
+    final textStyle = _getTextStyleForLanguage(fontSize);
 
     return RepaintBoundary(
       // PERFORMANCE: Prevent unnecessary repaints
@@ -1201,7 +1218,7 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
               child: Center(
                 child: Text(
                   key,
-                  style: textStyle, // Use cached/pre-computed style
+                  style: textStyle, // Use language-aware style
                 ),
               ),
             ),
@@ -1216,6 +1233,8 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
     VoidCallback? onTap,
     double? keyHeight,
   }) {
+    final fontSize = (keyHeight != null ? (keyHeight * 0.35).toDouble() : 16.0).clamp(10.0, 16.0);
+    
     return SizedBox(
       height: keyHeight,
       child: Material(
@@ -1240,14 +1259,10 @@ class _IndicaKeyboardState extends State<IndicaKeyboard> {
               child: FittedBox(
                 child: Text(
                   label,
-                  style: TextStyle(
-                    fontSize:
-                        (keyHeight != null
-                                ? (keyHeight * 0.35).toDouble()
-                                : 16.0)
-                            .clamp(10.0, 16.0),
-                    color: KeyboardConstants.textOnLight,
+                  style: _getTextStyleForLanguage(
+                    fontSize,
                     fontWeight: FontWeight.w500,
+                    color: KeyboardConstants.textOnLight,
                   ),
                   textAlign: TextAlign.center,
                 ),
